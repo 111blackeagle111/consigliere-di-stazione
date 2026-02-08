@@ -61,7 +61,9 @@ Contrariamente a molti logger moderni:
 **I tuoi log sono tuoi e restano nello shack.**
 
 ---
-
+## 🏗️In costruzione🚧
+⚠️ **Stato attuale**: Il Consigliere di Stazione è attualmente disponibile in versione **sorgente** (per utenti Linux/esperti).  
+La versione eseguibile per Windows (doppio click e via) è in fase di preparazione e sarà pubblicata nelle prossime settimane. 
 ## 🚀 Installazione
 
 ### Per Windows (Raccomandato)
@@ -75,7 +77,7 @@ Contrariamente a molti logger moderni:
 ### Per Linux / Raspberry Pi
 ```bash
 # Clona il repository
-git clone https://github.com/tuousername/consigliere-di-stazione.git
+git clone https://github.com/111blackeagle111/consigliere-di-stazione.git
 cd consigliere-di-stazione
 
 # Installa dipendenze
