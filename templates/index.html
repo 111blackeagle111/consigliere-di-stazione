@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SWL-Log con AI Locale - Gestionale Radio I6502TR</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        .subtitle {
+            text-align: center;
+            opacity: 0.9;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .card {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        .card h2 {
+            margin-top: 0;
+            color: #ffd700;
+            font-size: 1.3em;
+            border-bottom: 2px solid rgba(255,215,0,0.3);
+            padding-bottom: 10px;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            border: none;
+            background: rgba(255,255,255,0.9);
+            color: #333;
+            font-size: 14px;
+        }
+        button {
+            background: #ffd700;
+            color: #1e3c72;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+            transition: all 0.3s;
+        }
+        button:hover {
+            background: #ffed4e;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        button:disabled {
+            background: #666;
+            color: #999;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .btn-ai {
+            background: #ff6b6b;
+            color: white;
+            font-size: 1.1em;
+            margin-top: 20px;
+        }
+        .btn-ai:hover {
+            background: #ff8585;
+        }
+        .btn-noaa {
+            background: #4ecdc4;
+            color: white;
+            margin-bottom: 10px;
+        }
+        .btn-noaa:hover {
+            background: #6eeadd;
+        }
+        .btn-dx {
+            background: #95e1d3;
+            color: #1e3c72;
+            margin-bottom: 10px;
+        }
+        .btn-dx:hover {
+            background: #a8f0e3;
+        }
+        .btn-check {
+            background: #9b59b6;
+            color: white;
+            margin-bottom: 10px;
+        }
+        .btn-check:hover {
+            background: #8e44ad;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+            vertical-align: top;
+        }
+        th {
+            background: rgba(0,0,0,0.2);
+        }
+        tr:hover {
+            background: rgba(255,255,255,0.05);
+        }
+        td.note-cell {
+            font-size: 0.9em;
+            cursor: pointer;
+            position: relative;
+            max-width: 400px;
+            transition: all 0.3s ease;
+        }
+        td.note-cell:hover {
+            background: rgba(255,255,255,0.05);
+        }
+        .note-preview {
+            opacity: 0.9;
+            display: block;
+        }
+        .note-full {
+            display: none;
+            white-space: pre-line;
+            line-height: 1.5;
+            padding: 5px 0;
+            animation: fadeIn 0.3s ease;
+        }
+        td.note-cell.expanded {
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+        }
+        td.note-cell.expanded .note-preview {
+            display: none;
+        }
+        td.note-cell.expanded .note-full {
+            display: block;
+        }
+        .expand-icon {
+            position: absolute;
+            right: 10px;
+            top: 15px;
+            opacity: 0.5;
+            font-size: 0.8em;
+            pointer-events: none;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .stats {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        .stat-box {
+            background: rgba(0,0,0,0.3);
+            padding: 15px;
+            border-radius: 10px;
+            min-width: 100px;
+            text-align: center;
+            flex: 1;
+        }
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #ffd700;
+        }
+        #ai-response, #solar-response, #dx-response, #check-response {
+            background: rgba(0,0,0,0.3);
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 15px;
+            border-left: 4px solid;
+            white-space: pre-line;
+            display: none;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        #ai-response {
+            border-left-color: #ff6b6b;
+        }
+        #solar-response {
+            border-left-color: #4ecdc4;
+        }
+        #dx-response {
+            border-left-color: #95e1d3;
+        }
+        #check-response {
+            border-left-color: #9b59b6;
+        }
+        .loading {
+            text-align: center;
+            font-style: italic;
+            opacity: 0.8;
+        }
+        .controls-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .controls-row select {
+            flex: 1;
+        }
+        .controls-row button {
+            flex: 2;
+            margin-top: 0;
+        }
+        .spot-item {
+            background: rgba(149, 225, 211, 0.1);
+            padding: 8px;
+            margin: 5px 0;
+            border-radius: 5px;
+            border-left: 3px solid #95e1d3;
+            display: flex;
+            justify-content: space-between;
+        }
+        .spot-callsign {
+            font-weight: bold;
+            color: #ffd700;
+        }
+        .spot-freq {
+            font-family: monospace;
+            opacity: 0.9;
+        }
+        .full-width {
+            grid-column: 1 / -1;
+        }
+        .noaa-status-line {
+            background: rgba(78, 205, 196, 0.15);
+            border: 1px solid rgba(78, 205, 196, 0.4);
+            border-radius: 8px;
+            padding: 10px 15px;
+            margin: 10px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.95em;
+        }
+        .noaa-status-btn {
+            background: rgba(255,255,255,0.2) !important;
+            border: 1px solid rgba(255,255,255,0.3) !important;
+            color: white !important;
+            padding: 4px 12px !important;
+            font-size: 0.85em !important;
+            width: auto !important;
+            margin: 0 !important;
+        }
+        .noaa-status-btn:hover {
+            background: rgba(255,255,255,0.3) !important;
+            transform: translateY(-1px) !important;
+        }
+        @media (max-width: 968px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📡 Consigliere di Stazione</h1>
+        <div class="subtitle">Operatore: <strong>I6502TR</strong> | Laboratorio AI Locale</div>
+        
+        <!-- STATISTICHE RAPIDE -->
+        <div class="stats">
+            <div class="stat-box">
+                <div class="stat-number">{{ total }}</div>
+                <div>QSO Totali</div>
+            </div>
+            {% for band, count in bands.items() %}
+            <div class="stat-box">
+                <div class="stat-number">{{ count }}</div>
+                <div>{{ band }}</div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="grid">
+            <!-- INSERIMENTO QSO -->
+            <div class="card">
+                <h2>📝 Nuovo QSO</h2>
+                <form id="qsoForm">
+                    <input type="number" step="0.001" name="frequency" placeholder="Frequenza (MHz) - es: 14.250" required>
+                    <select name="mode" required>
+                        <option value="">Seleziona Modo</option>
+                        <option value="SSB">SSB</option>
+                        <option value="CW">CW</option>
+                        <option value="FM">FM</option>
+                        <option value="AM">AM</option>
+                        <option value="FT8">FT8</option>
+                        <option value="PSK31">PSK31</option>
+                        <option value="RTTY">RTTY</option>
+                        <option value="JT65">JT65</option>
+                    </select>
+                    <input type="text" name="call_sign" placeholder="Nominativo - es: IK1ABC" required>
+                    <input type="text" name="rst_received" placeholder="RST Ricevuto - es: 59">
+                    <input type="text" name="locator" placeholder="Locatore QTH - es: JN45MM" maxlength="6">
+                    <textarea name="notes" rows="2" placeholder="Note (propagazione, QSB, stazione, etc...)"></textarea>
+                    <button type="submit">💾 Salva QSO</button>
+                </form>
+            </div>
+            
+            <!-- CONTROLLI ESTERNI -->
+            <div class="card">
+                <h2>🌍 Dati In Tempo Reale</h2>
+                
+                <!-- BOTTONE CONTROLLA ORA AGGIUNTO -->
+                <button class="btn-check" onclick="triggerCheck()">
+                    🔄 Controlla Ora (Genera Alert)
+                </button>
+                <div id="check-response"></div>
+                
+                <button class="btn-noaa" onclick="fetchSolar()">
+                    🌞 Aggiorna Dati Solar (NOAA)
+                </button>
+                
+                <div class="noaa-status-line">
+                    <span>🌐 <strong>NOAA Status:</strong> <span id="noaa-dot">🟡</span> <span id="noaa-text">Verifica connessione...</span></span>
+                    <button class="noaa-status-btn" onclick="testNOAA()">Test</button>
+                </div>
+                
+                <div id="solar-response"></div>
+                
+                <div class="controls-row" style="margin-top: 15px;">
+                    <select id="dxBand">
+                        <option value="20m">20m</option>
+                        <option value="40m">40m</option>
+                        <option value="80m">80m</option>
+                        <option value="17m">17m</option>
+                        <option value="15m">15m</option>
+                        <option value="10m">10m</option>
+                    </select>
+                    <select id="dxMode">
+                        <option value="FT8">FT8</option>
+                        <option value="CW">CW</option>
+                        <option value="SSB">SSB</option>
+                    </select>
+                </div>
+                <button class="btn-dx" onclick="fetchDxSpots()">
+                    📡 Cerca Stazioni Attive (POTA)
+                </button>
+                <div id="dx-response"></div>
+                
+                <button class="btn-ai" onclick="askAI()">
+                    🤖 Chiedi Consiglio all'IA (Analizza tutto)
+                </button>
+                <div id="ai-response"></div>
+            </div>
+        </div>
+
+        <!-- TABELLA LOG -->
+        <div class="card full-width">
+            <h2>📋 Ultimi QSO Registrati</h2>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Data/Ora</th>
+                            <th>Banda</th>
+                            <th>Modo</th>
+                            <th>Nominativo</th>
+                            <th>RST</th>
+                            <th>Locatore</th>
+                            <th>Note (clicca per espandere)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in logs %}
+                        <tr>
+                            <td>{{ log.timestamp.strftime('%d/%m %H:%M') if log.timestamp else '-' }}</td>
+                            <td><strong>{{ "%.3f"|format(log.frequency) if log.frequency > 0 else 'PROP' }}</strong> {{ 'MHz' if log.frequency > 0 else '' }}</td>
+                            <td><span style="background: rgba(255,215,0,0.2); padding: 2px 8px; border-radius: 4px;">{{ log.mode }}</span></td>
+                            <td><strong style="color: #ffd700;">{{ log.call_sign }}</strong></td>
+                            <td>{{ log.rst_received or '-' }}</td>
+                            <td>{{ log.locator or '-' }}</td>
+                            <td class="note-cell" onclick="this.classList.toggle('expanded')" title="Clicca per espandere/ridurre">
+                                <span class="note-preview">
+                                    {{ log.notes[:80]|e if log.notes else '-' }}{% if log.notes and log.notes|length > 80 %}...{% endif %}
+                                    <span class="expand-icon">▼</span>
+                                </span>
+                                <span class="note-full">
+                                    {{ log.notes|e if log.notes else '-' }}
+                                    <span class="expand-icon">▲</span>
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% if not logs %}
+                <p style="text-align: center; opacity: 0.7; padding: 20px;">Nessun QSO registrato. Inizia ad ascoltare!</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Test NOAA Status
+        async function testNOAA() {
+            const dot = document.getElementById('noaa-dot');
+            const txt = document.getElementById('noaa-text');
+            
+            dot.textContent = '🟡';
+            txt.textContent = 'Testing...';
+            
+            try {
+                const r = await fetch('/debug/noaa-test');
+                const d = await r.json();
+                
+                if (d.noaa_status === 'ok') {
+                    dot.textContent = '🟢';
+                    txt.textContent = `Connesso (${Math.round(d.response_time_ms)}ms)`;
+                } else {
+                    dot.textContent = '🔴';
+                    txt.textContent = 'Errore connessione';
+                    console.error('NOAA Error:', d.error_details);
+                }
+            } catch(e) {
+                dot.textContent = '🔴';
+                txt.textContent = 'Offline';
+            }
+        }
+
+        // Auto-test dopo 1 secondo
+        setTimeout(testNOAA, 1000);
+
+        // NUOVA FUNZIONE: Controlla Ora (Genera Alert)
+        async function triggerCheck() {
+            const btn = document.querySelector('.btn-check');
+            const resp = document.getElementById('check-response');
+            
+            btn.disabled = true;
+            btn.textContent = '⏳ Generazione in corso...';
+            resp.style.display = 'block';
+            resp.innerHTML = '<div class="loading">Analisi condizioni + AI...</div>';
+            
+            try {
+                const r = await fetch('/ui/trigger-check', { method: 'POST' });
+                const d = await r.json();
+                
+                if (d.status === 'alert_generated') {
+                    resp.innerHTML = `✅ <strong>Alert Generato!</strong><br><br>🎯 ${d.alert.message}<br><br><em>Score: ${d.evaluation.score}/100 - Livello: ${d.evaluation.level}</em>`;
+                } else if (d.status === 'cached') {
+                    resp.innerHTML = `ℹ️ <strong>Alert in cache</strong><br>Già inviato recentemente. Attendi 30 minuti o usa "force=true"`;
+                } else if (d.status === 'quiet') {
+                    resp.innerHTML = `ℹ️ <strong>Condizioni quiete</strong><br>Score troppo basso (${d.score}/100). Nessun alert necessario.<br><em>Forza comunque con /alert/check?force=true</em>`;
+                } else {
+                    resp.innerHTML = `⚠️ <strong>Stato:</strong> ${d.message || d.status}`;
+                }
+            } catch(e) {
+                resp.innerHTML = '❌ Errore di connessione: ' + e.message;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🔄 Controlla Ora (Genera Alert)';
+            }
+        }
+
+        // Salva QSO
+        document.getElementById('qsoForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const btn = e.target.querySelector('button');
+            btn.disabled = true;
+            btn.textContent = 'Salvataggio...';
+            
+            const formData = new FormData(e.target);
+            
+            try {
+                const response = await fetch('/add', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (response.ok) {
+                    location.reload();
+                } else {
+                    alert('Errore salvataggio');
+                }
+            } catch (err) {
+                alert('Errore di connessione');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '💾 Salva QSO';
+            }
+        };
+
+        // Fetch Solar Data
+        async function fetchSolar() {
+            const btn = document.querySelector('.btn-noaa');
+            const resp = document.getElementById('solar-response');
+            
+            btn.disabled = true;
+            btn.textContent = '🌞 Scaricando dati NOAA...';
+            resp.style.display = 'block';
+            resp.innerHTML = '<div class="loading">Contatto satellite NOAA in corso...</div>';
+            
+            try {
+                const response = await fetch('/fetch/solar');
+                const data = await response.json();
+                
+                if (data.status === 'ok') {
+                    resp.innerHTML = `<strong>✅ Dati Solar Aggiornati!</strong>
+                    
+<strong>K-Index:</strong> ${data.data.k_index || 'N/A'}
+<strong>Solar Flux:</strong> ${data.data.sfi || 'N/A'}
+<strong>Condizioni:</strong> ${data.interpretation}
+
+<em>Salvato automaticamente nel database</em>`;
+                } else {
+                    resp.innerHTML = `<strong>❌ Errore:</strong> ${data.message || 'Dati non disponibili'}`;
+                }
+            } catch (e) {
+                resp.innerHTML = `<strong>❌ Errore di connessione:</strong> ${e.message}`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🌞 Aggiorna Dati Solar (NOAA)';
+            }
+        }
+
+        // Fetch DX Spots
+        async function fetchDxSpots() {
+            const btn = document.querySelector('.btn-dx');
+            const resp = document.getElementById('dx-response');
+            const band = document.getElementById('dxBand').value;
+            const mode = document.getElementById('dxMode').value;
+            
+            btn.disabled = true;
+            btn.textContent = '📡 Ricerca stazioni...';
+            resp.style.display = 'block';
+            resp.innerHTML = '<div class="loading">Interrogo POTA (Parks on the Air)...</div>';
+            
+            try {
+                const response = await fetch(`/fetch/dxspots?band=${band}&mode=${mode}`);
+                const data = await response.json();
+                
+                let html = `<strong>📡 Spot ${band} ${mode} - Trovati: ${data.spots_found}</strong>\n\n`;
+                
+                if (data.spots && data.spots.length > 0) {
+                    data.spots.forEach(spot => {
+                        html += `<div class="spot-item">
+                            <span class="spot-callsign">${spot.call || 'N/A'}</span>
+                            <span class="spot-freq">${spot.freq || 'N/A'} MHz</span>
+                        </div>`;
+                    });
+                } else {
+                    html += '<em>Nessuna stazione attiva rilevata al momento</em>';
+                }
+                
+                html += `\n<em>Aggiornato: ${new Date().toLocaleTimeString()}</em>`;
+                resp.innerHTML = html;
+                
+            } catch (e) {
+                resp.innerHTML = `<strong>❌ Errore:</strong> ${e.message}`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '📡 Cerca Stazioni Attive (POTA)';
+            }
+        }
+
+        // Ask AI
+        async function askAI() {
+            const btn = document.querySelector('.btn-ai');
+            const resp = document.getElementById('ai-response');
+            
+            btn.disabled = true;
+            btn.textContent = '🤖 Analisi in corso...';
+            resp.style.display = 'block';
+            resp.innerHTML = '<div class="loading">Collegamento IA locale...</div>';
+            
+            try {
+                const response = await fetch('/ai/analyze');
+                const data = await response.json();
+                
+                if (!data.response || data.response === 'undefined') {
+                    resp.innerHTML = '⚠️ <strong>AI Offline:</strong><br>Ollama non risponde su localhost:11434.<br><br>I controlli da fare:<br>1. Avvia terminale: <code>ollama serve</code><br>2. Installa modello: <code>ollama pull llama3.2:3b</code><br>3. Ricarica la pagina';
+                } else {
+                    resp.innerHTML = '🎯 <strong>CONSIGLI AI:</strong>\n\n' + data.response;
+                }
+            } catch (e) {
+                resp.innerHTML = '❌ Errore di connessione: ' + e.message;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🤖 Chiedi Consiglio all\'IA';
+            }
+        }
+    </script>
+</body>
+</html>
