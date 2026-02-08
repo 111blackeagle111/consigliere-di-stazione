@@ -1,0 +1,299 @@
+================================================================================
+                       MANUALE UTENTE
+                     Consigliere di Stazione
+                         Versione 1.0
+                          di I6502TR
+================================================================================
+
+INDICE
+------
+1. Prima di iniziare
+2. Personalizza il tuo nominativo e la posizione (IMPORTANTE)
+3. Accensione e collegamento
+4. Il pannello di controllo
+5. Registrare un ascolto (QSO)
+6. Controllare la propagazione
+7. Consultare il Consigliere
+8. Cosa fare se... (risoluzione problemi)
+9. Appendice per tecnici
+
+
+================================================================================
+1. PRIMA DI INIZIARE
+================================================================================
+
+Cosa serve:
+- Un computer (PC Windows, Mac o Linux) collegato alla rete internet
+- Il programma "Consigliere di Stazione" già installato
+- Un browser qualsiasi (Chrome, Firefox, Edge, Safari)
+
+Nota importante: I tuoi dati restano nel computer. Non serve registrarsi 
+a siti internet né inserire password. Il quaderno di bordo è tuo e resta 
+nello shack.
+
+Dove si mettono i file:
+Il programma crea automaticamente nella sua cartella il file "swl_logs.db": 
+questo È il tuo registro completo. Per fare un backup, basta copiare questo 
+file su una chiavetta USB.
+
+
+================================================================================
+2. PERSONALIZZA IL TUO NOMINATIVO E LA POSIZIONE (IMPORTANTE)
+================================================================================
+
+ATTENZIONE: Il programma viene consegnato con due impostazioni di esempio 
+che DEVI cambiare con i tuoi dati personali:
+
+1. Il nominativo operatore (ora impostato su "I6502TR", che è il mio)
+2. Le coordinate geografiche (ora impostate su Trieste/Venezia)
+
+Se non modifichi questi dati, il Consigliere penserà di trovarsi a Trieste 
+e firmerà i log con il mio nominativo!
+
+
+2.1 Cambiare il nominativo operatore
+-------------------------------------
+File da modificare: templates/index.html (nella cartella templates)
+
+Procedura:
+1. Apri il file "index.html" con Blocco Note (Windows) o TextEdit (Mac)
+2. Usa la funzione "Trova" (tasti Ctrl+F) e cerca: I6502TR
+3. Troverai una riga simile a questa:
+   
+   <div class="subtitle">Operatore: <strong>I6502TR</strong> | Laboratorio AI Locale</div>
+
+4. Sostituisci "I6502TR" con il tuo nominativo (es. "IK1ABC" o "IU5BCD")
+   ATTENZIONE: Non cancellare le parentesi <strong> e </strong>, né le 
+   virgolette. Cambia solo il testo tra di esse.
+5. Salva il file (stesso nome, stessa posizione)
+
+
+2.2 Cambiare la tua posizione geografica (QTH)
+-----------------------------------------------
+File da modificare: main.py (nella cartella principale)
+
+Procedura:
+1. Apri il file "main.py" con Blocco Note o TextEdit
+2. Cerca (Ctrl+F) la riga: LAT = 45.46
+3. Troverai queste due righe vicine all'inizio del file:
+   
+   LAT = 45.46
+   LNG = 12.35
+
+4. Sostituisci i numeri con le coordinate della tua stazione:
+   - LAT = Latitudine (es. per Roma: 41.90, per Milano: 45.46, 
+     per Catania: 37.50)
+   - LNG = Longitudine (es. per Roma: 12.50, per Milano: 9.19, 
+     per Catania: 15.08)
+
+   IMPORTANTE: Usa sempre il PUNTO come separatore decimale, NON la 
+   virgola. Scrivere "41,90" bloccherebbe il programma!
+
+5. Salva il file
+
+Come trovare le tue coordinate:
+- Apri Google Maps nel browser
+- Clicca con il tasto destro sulla tua casa (o centro città)
+- Seleziona "Che cosa c'è qui?" 
+- Copia i due numeri: il primo è LAT, il secondo è LNG
+
+Precauzioni prima di modificare:
+- Fai un backup: Prima di modificare, copia il file originale e 
+  rinominalo "main.py.originale" o "index.html.originale"
+- Non usare Word: Usa solo editor di testo semplice (Blocco Note, 
+  TextEdit, Notepad++). Word aggiunge formattazione che corrompe il file.
+
+
+================================================================================
+3. ACCENSIONE E COLLEGAMENTO
+================================================================================
+
+Avvio del programma:
+
+Su Linux/Raspberry Pi (versione attuale):
+1. Apri il terminale
+2. Scrivi: python main.py e premi Invio
+3. Vedrai scritto: "Server avviato su http://0.0.0.0:8080"
+
+Su Windows (versione prossimamente disponibile):
+1. Doppio click sull'icona "Consigliere di Stazione"
+2. Aspetta qualche secondo che appaia la finestra nera (non chiuderla!)
+3. Si aprirà automaticamente il browser
+
+Collegamento:
+Apri il tuo browser e nella barra degli indirizzi scrivi esattamente:
+http://localhost:8080
+oppure
+127.0.0.1:8080
+
+Premi Invio. Vedrai comparire la pagina blu del Consigliere.
+
+Suggerimento: Metti questa pagina nei preferiti (segnalibri) del browser.
+
+
+================================================================================
+4. IL PANNELLO DI CONTROLLO
+================================================================================
+
+La schermata principale è divisa in tre zone:
+
+ZONA SUPERIORE (blu scuro):
+- Il numero totale dei tuoi QSO registrati
+- Le statistiche per banda (quanti contatti hai fatto sui 20m, 40m, ecc.)
+
+ZONA CENTRALE (due colonne):
+- Sinistra: Il modulo per scrivere i nuovi ascolti
+- Destra: I comandi per il Consigliere (dati solari, ricerca stazioni, 
+  consigli AI)
+
+ZONA INFERIORE (tabella):
+- L'elenco degli ultimi ascolti registrati, con data e ora
+- Qui compaiono anche i "rapporti automatici" del sistema sui dati NOAA
+
+
+================================================================================
+5. REGISTRARE UN ASCOLTO (QSO)
+================================================================================
+
+Quando catturi una stazione, procedi così:
+
+1. Frequenza: Nel campo bianco scrivi la frequenza in MHz 
+   (esempio: 14.250 oppure 7.180). Non serve scrivere "MHz", basta il numero. 
+   Se metti un numero sopra i 1000, il sistema capisce che sono kHz e converte 
+   automaticamente.
+
+2. Modo: Dal menu a tendina scegli il tipo di emissione (SSB, CW, FT8, AM, FM)
+
+3. Nominativo: Scrivi il callsign della stazione (esempio: IK1ABC). 
+   Il sistema accetta sia maiuscole che minuscole, poi le mette in automatico 
+   in maiuscolo.
+
+4. RST Ricevuto: Il rapporto di ricezione (esempio: 59, 579, 5nn per il CW). 
+   Se non l'hai preso, lascia vuoto.
+
+5. Locatore: Il QTH locator della stazione (esempio: JN45MM). 
+   Se non lo sai, lascia vuoto.
+
+6. Note: Qui puoi scrivere ciò che vuoi: "QSB forte", "Voce femminile", 
+   "QRM da vicino", "Primo contatto con questo paese", ecc.
+
+7. Clicca il bottone giallo "Salva QSO".
+
+Risultato: La pagina si aggiorna e vedi il tuo contatto comparire in fondo 
+alla tabella, con l'orario esatto.
+
+Per vedere le note lunghe:
+Nella tabella dei QSO, le note sono tagliate se sono lunghe. 
+Clicca sulla riga con il mouse: si apre e mostra tutto il testo. 
+Clicca di nuovo per chiuderla.
+
+
+================================================================================
+6. CONTROLLARE LA PROPAGAZIONE
+================================================================================
+
+Prima di accendere la radio, puoi controllare le condizioni:
+
+Aggiornare i dati solari:
+Clicca il bottone verde "Aggiorna Dati Solar (NOAA)".
+
+Il sistema si collega ai satelliti meteorologici americani e scarica:
+- K-index: l'indice geomagnetico (se è basso, meglio è)
+- SFI: il Solar Flux Index (se è alto, meglio è per le alte frequenze)
+
+Dopo qualche secondo compare una scritta che ti dice se la propagazione è 
+"Eccellente", "Buona" o "Disturbata". Questo dato viene salvato automaticamente.
+
+Cercare stazioni attive (POTA):
+Dal menu a tendina scegli una banda (es. 20m) e un modo (es. FT8), 
+poi clicca "Cerca Stazioni Attive".
+
+Il Consigliere consulta il database POTA (Parks on the Air) e ti mostra chi 
+sta trasmettendo in questo momento su quella banda. Utile per trovare subito 
+qualcosa da ascoltare.
+
+
+================================================================================
+7. CONSULTARE IL CONSIGLIERE
+================================================================================
+
+Questa è la funzione speciale. Dopo aver registrato qualche QSO e aver 
+aggiornato i dati solari, clicca il bottone rosso "Chiedi Consiglio all'IA".
+
+Il sistema analizzerà:
+- Le condizioni solari attuali (K-index, SFI)
+- Le bande dove hai operato di più ultimamente
+- L'ora del giorno
+- L'attività POTA in corso
+
+E ti risponderà con un consiglio scritto in italiano, tipo:
+"Oggi pomeriggio propagazione eccellente sui 20 metri verso Est. 
+Il K-index è stabile a 2. Prova a cercare attivatori POTA sul 14.074 MHz."
+
+Nota: Per usare questa funzione devi aver installato anche "Ollama" con il 
+modello Llama (vedi istruzioni tecniche separate). Se non è installato, 
+ti avvisa che il Consigliere è "in ferie".
+
+
+================================================================================
+8. COSA FARE SE... (RISOLUZIONE PROBLEMI)
+================================================================================
+
+...la pagina non si apre
+- Controlla che il programma sia avviato (la finestra nera del terminale 
+  deve essere aperta)
+- Assicurati di aver scritto correttamente localhost:8080 nella barra 
+  degli indirizzi
+- Prova a ricaricare la pagina premendo F5
+
+...il Consigliere non risponde
+- Se l'alert AI dice "offline", significa che Ollama non è installato. 
+  Per ora puoi usare comunque tutte le altre funzioni (logging e dati NOAA).
+
+...i dati NOAA non arrivano
+- Controlla che il computer sia collegato a internet
+- Clicca sul bottone "Test" accanto a "NOAA Status" per vedere se la 
+  connessione funziona
+- Se il sito NOAA è in manutenzione, aspetta qualche minuto e riprova
+
+...ho paura di perdere i miei QSO
+- Il file "swl_logs.db" nella cartella del programma È il tuo registro. 
+  Copialo periodicamente su USB come backup.
+- È un file SQLite standard: puoi aprirlo anche con Excel o LibreOffice 
+  se vuoi stampare i contatti.
+
+...voglio spegnere tutto
+- Chiudi la scheda del browser
+- Se hai avviato da terminale, premi CTRL+C nella finestra nera, 
+  oppure chiudi la finestra
+- I dati sono già salvati, non rischi di perderli
+
+
+================================================================================
+9. APPENDICE PER TECNICI
+================================================================================
+
+Porta di default: 8080. Se è occupata, modifica l'ultima riga di main.py 
+(cambia port=8080 con un altro numero, es. 8081)
+
+Database: SQLite, tabella "qsos". 
+Colonne: id, timestamp, frequency, mode, call_sign, rst_received, 
+locator, notes
+
+Modelli AI: Compatibile con Ollama (llama3.2:3b di default). 
+Cambiabile modificando la funzione ask_ai() in main.py
+
+Coordinate stazione: Modificabili nel file main.py, variabili LAT e LNG 
+(vedi sezione 2.2 di questo manuale)
+
+Note sui file:
+- templates/index.html = contiene il nominativo operatore e la grafica
+- main.py = contiene le coordinate geografiche e la logica del programma
+- swl_logs.db = il tuo database dei QSO (non cancellare!)
+
+
+================================================================================
+Fine manuale - 73 - I6502TR
+
+Per aggiornamenti e versioni nuove, controlla la pagina GitHub del progetto.
+================================================================================
