@@ -1,0 +1,22 @@
+# Consigliere di Stazione - Dipendenze Python
+# Installazione: pip install -r requirements.txt
+
+# Framework web e server
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+
+# Database e templating
+sqlalchemy>=2.0.0
+jinja2>=3.1.0
+
+# Parsing form HTML e file upload
+python-multipart>=0.0.6
+aiofiles>=23.2.0
+
+# Richieste HTTP (NOAA, POTA)
+requests>=2.31.0
+urllib3>=2.0.0
+
+# Note:
+# - uvicorn[standard] include dipendenze per performance ottimali
+# - Per il modulo AI, installare separatamente Ollama da https://ollama.com
