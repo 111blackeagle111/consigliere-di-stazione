@@ -46,7 +46,7 @@ I QSO finiscono in un file SQLite sul tuo disco. Nient'altro.
 
 ### Windows
 
-1. Scarica `ConsigliereDiStazione.exe` da questa pagina (tasto verde "Code" → o direttamente dalla lista file)
+1. Scarica **[ConsigliereDiStazione.exe](https://github.com/111blackeagle111/consigliere-di-stazione/raw/main/ConsigliereDiStazione.exe)**
 2. Mettilo dove vuoi (Desktop, Documenti...)
 3. Doppio click
 4. Il browser si apre da solo su `http://localhost:8080`
@@ -54,6 +54,8 @@ I QSO finiscono in un file SQLite sul tuo disco. Nient'altro.
 Python non serve. Non bisogna installare niente.
 
 Per fermare il programma, chiudi la finestra nera che rimane aperta.
+
+Prima volta? Leggi la **[Guida rapida per Windows](docs/GUIDA_WINDOWS.txt)** — scarica, Windows Defender, primo avvio, backup dei log.
 
 ### Linux / Raspberry Pi
 
