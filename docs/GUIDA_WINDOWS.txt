@@ -1,0 +1,165 @@
+================================================================================
+                    GUIDA RAPIDA PER WINDOWS
+                  Consigliere di Stazione v1.0
+                         di I6502TR
+================================================================================
+
+Questa guida è per chi usa Windows e non ha mai sentito parlare di Python
+o di terminali. Segui i passi nell'ordine e in dieci minuti sei operativo.
+
+
+================================================================================
+1. SCARICARE IL PROGRAMMA
+================================================================================
+
+1. Apri il browser (Chrome, Edge, Firefox — va bene qualsiasi)
+2. Vai su: https://github.com/111blackeagle111/consigliere-di-stazione
+3. Nella lista dei file clicca su "ConsigliereDiStazione.exe"
+4. Clicca sul pulsante "Download raw file" (icona freccia verso il basso)
+5. Il file viene scaricato nella cartella "Download" del tuo computer
+
+Dimensione del file: circa 20 MB. Ci vogliono pochi secondi.
+
+
+================================================================================
+2. SE WINDOWS BLOCCA IL FILE
+================================================================================
+
+Windows a volte mostra un avviso di sicurezza sui programmi scaricati da
+internet. Non è un virus — è la normale diffidenza di Windows verso i file
+nuovi. Ecco cosa fare:
+
+Se compare "Windows ha protetto il PC":
+1. Clicca su "Ulteriori informazioni"
+2. Clicca su "Esegui comunque"
+
+Se compare un avviso di Windows Defender:
+1. Clicca su "Mostra ulteriori informazioni" (o "More info")
+2. Clicca su "Esegui comunque"
+
+Se il file sparisce dalla cartella Download:
+Windows Defender lo ha messo in quarantena. Per recuperarlo:
+1. Apri Windows Security (cerca "Sicurezza di Windows" nel menu Start)
+2. Vai su "Protezione da virus e minacce"
+3. Clicca su "Cronologia protezione"
+4. Trova il file nell'elenco e clicca "Ripristina"
+
+
+================================================================================
+3. AVVIARE IL PROGRAMMA
+================================================================================
+
+1. Vai nella cartella dove hai salvato ConsigliereDiStazione.exe
+   (di solito: C:\Users\TuoNome\Downloads)
+2. Doppio click sul file
+
+Cosa succede:
+- Si apre una finestra nera con scritto "Avvio in corso, attendere..."
+- Dopo 3-4 secondi si apre il browser con la pagina del Consigliere
+- Se il browser non si apre da solo, aprilo tu e scrivi: localhost:8080
+
+IMPORTANTE: Non chiudere la finestra nera. Finché è aperta, il programma
+funziona. Chiuderla equivale a spegnere il Consigliere.
+
+Consiglio: Sposta il file sul Desktop o in una cartella comoda, così
+lo trovi sempre facilmente.
+
+
+================================================================================
+4. PRIMO AVVIO: METTI IL TUO NOMINATIVO
+================================================================================
+
+La prima volta che apri il programma vedrai in cima alla pagina:
+
+   Operatore: I6502TR ✎
+
+Quel nominativo è il mio. Cambialo con il tuo:
+
+1. Clicca sulla scritta "I6502TR"
+2. Compare un campo di testo: cancella e scrivi il tuo nominativo
+3. Premi Invio
+
+Il nominativo viene salvato automaticamente. Non serve ripetere questa
+operazione ai prossimi avvii.
+
+
+================================================================================
+5. USARE IL PROGRAMMA
+================================================================================
+
+La pagina è divisa in due colonne:
+
+COLONNA SINISTRA — Il tuo quaderno di bordo:
+Compila i campi e clicca "Salva QSO" per registrare un ascolto.
+Campi disponibili: frequenza (in MHz), modo, nominativo della stazione
+ascoltata, RST ricevuto, locatore QTH, note libere.
+
+COLONNA DESTRA — Gli strumenti:
+- "Aggiorna Dati Solar (NOAA)": scarica K-index e Solar Flux Index dai
+  server americani. Clicca prima di operare per avere i dati aggiornati.
+
+- "Cerca Stazioni Attive (POTA)": mostra chi sta trasmettendo adesso.
+  Scegli banda e modo dal menu, poi clicca il bottone.
+
+- "Controlla Ora": genera un alert sulle condizioni di propagazione.
+
+- "Chiedi Consiglio all'IA": ti dà consigli personalizzati basati sui
+  tuoi log e sui dati solari. Funziona senza installare nulla di extra.
+
+
+================================================================================
+6. SPEGNERE IL PROGRAMMA
+================================================================================
+
+Quando hai finito:
+1. Chiudi la scheda del browser (o tutto il browser)
+2. Clicca sulla finestra nera e premi un tasto qualsiasi, oppure
+   chiudi la finestra con la X
+
+I tuoi dati sono già salvati — non rischi di perdere nulla.
+
+
+================================================================================
+7. BACKUP DEI TUOI LOG
+================================================================================
+
+Tutti i tuoi QSO sono salvati in un file chiamato "swl_logs.db" nella
+stessa cartella dove si trova ConsigliereDiStazione.exe.
+
+Per fare un backup:
+1. Copia quel file su una chiavetta USB o in un'altra cartella
+2. Fallo ogni tanto, specialmente dopo sessioni importanti
+
+Per ripristinare i log su un altro computer:
+Copia swl_logs.db nella stessa cartella dell'exe sul nuovo PC.
+Avvia il programma: troverai tutti i tuoi contatti.
+
+
+================================================================================
+8. PROBLEMI COMUNI
+================================================================================
+
+La pagina non si apre nel browser:
+- Controlla che la finestra nera sia ancora aperta
+- Prova ad aprire il browser manualmente e scrivi: localhost:8080
+
+I dati NOAA non arrivano:
+- Verifica che il computer sia connesso a internet
+- Clicca il bottone "Test" accanto a "NOAA Status"
+- Se il problema persiste, aspetta qualche minuto e riprova
+
+Il programma si apre e si chiude subito:
+- La porta 8080 potrebbe essere già usata da un altro programma
+- Prova a riavviare il computer e rilanciare il Consigliere
+
+Windows continua a bloccare il file ad ogni avvio:
+- Sposta l'exe in una cartella fissa (es. C:\ConsigliereDiStazione\)
+- Clicca con il tasto destro sull'exe → Proprietà → in fondo
+  spunta "Sblocca" → OK
+
+
+================================================================================
+73 de I6502TR
+
+Per aggiornamenti: https://github.com/111blackeagle111/consigliere-di-stazione
+================================================================================
