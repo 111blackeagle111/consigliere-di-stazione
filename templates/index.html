@@ -289,7 +289,19 @@
 <body>
     <div class="container">
         <h1>📡 Consigliere di Stazione</h1>
-        <div class="subtitle">Operatore: <strong>I6502TR</strong> | Laboratorio AI Locale</div>
+        <div class="subtitle">
+            Operatore:
+            <span id="callsign-display" onclick="editCallsign()" style="cursor:pointer" title="Clicca per modificare il nominativo">
+                <strong>{{ callsign }}</strong> ✎
+            </span>
+            <span id="callsign-edit" style="display:none">
+                <input id="callsign-input" type="text" maxlength="10"
+                       style="width:100px;font-weight:bold;text-transform:uppercase;background:#1e3c72;color:#ffd700;border:1px solid #ffd700;border-radius:4px;padding:2px 6px"
+                       onkeydown="if(event.key==='Enter') saveCallsign(); if(event.key==='Escape') cancelCallsign();"
+                       onblur="saveCallsign()">
+            </span>
+            | Laboratorio AI Locale
+        </div>
         
         <!-- STATISTICHE RAPIDE -->
         <div class="stats">
@@ -610,6 +622,33 @@
                 btn.disabled = false;
                 btn.textContent = '🤖 Chiedi Consiglio all\'IA';
             }
+        }
+
+        function editCallsign() {
+            document.getElementById('callsign-display').style.display = 'none';
+            document.getElementById('callsign-edit').style.display = 'inline';
+            const input = document.getElementById('callsign-input');
+            input.value = document.querySelector('#callsign-display strong').textContent;
+            input.focus();
+            input.select();
+        }
+
+        function saveCallsign() {
+            const val = document.getElementById('callsign-input').value.trim().toUpperCase();
+            if (!val) { cancelCallsign(); return; }
+            fetch('/settings/callsign', {
+                method: 'POST',
+                body: new URLSearchParams({callsign: val})
+            }).then(() => {
+                document.querySelector('#callsign-display strong').textContent = val;
+                document.getElementById('callsign-display').style.display = 'inline';
+                document.getElementById('callsign-edit').style.display = 'none';
+            });
+        }
+
+        function cancelCallsign() {
+            document.getElementById('callsign-display').style.display = 'inline';
+            document.getElementById('callsign-edit').style.display = 'none';
         }
     </script>
 </body>
