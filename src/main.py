@@ -15,9 +15,25 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import os
+import sys
 from pathlib import Path
+
+
+def get_base_path() -> Path:
+    """Path alle risorse bundled (templates). In PyInstaller punta a _MEIPASS."""
+    if getattr(sys, 'frozen', False):
+        return Path(sys._MEIPASS)
+    return Path(__file__).parent.parent
+
+
+def get_data_path() -> Path:
+    """Path scrivibile per il DB. In PyInstaller punta alla dir dell'exe."""
+    if getattr(sys, 'frozen', False):
+        return Path(sys.executable).parent
+    return Path(__file__).parent.parent
+
+
 from fastapi import FastAPI, Depends, Request, Form, BackgroundTasks
-from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import StreamingResponse
 from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, Text
@@ -25,8 +41,6 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime, timedelta
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 import json
 import logging
 import asyncio
@@ -42,12 +56,13 @@ logger = logging.getLogger(__name__)
 # ============================================================
 
 Base = declarative_base()
-engine = create_engine('sqlite:///swl_logs.db', connect_args={"check_same_thread": False})
+_db_path = get_data_path() / "swl_logs.db"
+engine = create_engine(f'sqlite:///{_db_path}', connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 class QSO(Base):
     __tablename__ = "qsos"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     timestamp = Column(DateTime, default=datetime.now)
     frequency = Column(Float, default=0.0)
@@ -58,8 +73,17 @@ class QSO(Base):
     locator = Column(String, default="")
     notes = Column(Text, default="")
 
+class Settings(Base):
+    __tablename__ = "settings"
+    key = Column(String, primary_key=True)
+    value = Column(String, default="")
+
 # Crea tabelle
 Base.metadata.create_all(bind=engine)
+
+def get_callsign(db: Session) -> str:
+    row = db.query(Settings).filter(Settings.key == "callsign").first()
+    return row.value if row else "I6502TR"
 
 def get_db():
     db = SessionLocal()
@@ -74,8 +98,7 @@ def get_db():
 
 app = FastAPI(title="SWL-Log AI")
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory=str(get_base_path() / "templates"))
 
 LAT = 45.46
 LNG = 12.35
@@ -147,38 +170,28 @@ class SolarThresholds:
 # ============================================================
 
 def get_solar_data():
-    session = requests.Session()
-    retry_strategy = Retry(
-        total=3,
-        backoff_factor=1,
-        status_forcelist=[429, 500, 502, 503, 504],
-        allowed_methods=["GET"]
-    )
-    adapter = HTTPAdapter(max_retries=retry_strategy)
-    session.mount("https://", adapter)
-    
     try:
         url_k = "https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json"
-        logger.info(f"Fetching NOAA K-index...")
-        resp_k = session.get(url_k, timeout=(10, 30))
+        logger.info("Fetching NOAA K-index...")
+        resp_k = requests.get(url_k, timeout=30)
         resp_k.raise_for_status()
         data_k = resp_k.json()
-        
+
         url_sfi = "https://services.swpc.noaa.gov/json/f107_cm_flux.json"
-        logger.info(f"Fetching NOAA SFI...")
-        resp_sfi = session.get(url_sfi, timeout=(10, 30))
+        logger.info("Fetching NOAA SFI...")
+        resp_sfi = requests.get(url_sfi, timeout=30)
         resp_sfi.raise_for_status()
         data_sfi = resp_sfi.json()
         
-        observed_values = [x for x in data_k if len(x) > 2 and x[2] == "observed"]
+        observed_values = [x for x in data_k if x.get("observed") == "observed"]
         if observed_values:
             last_k = observed_values[-1]
-            k_val = last_k[1]
-            k_time = last_k[0]
+            k_val = last_k["kp"]
+            k_time = last_k["time_tag"]
         else:
             last_k = data_k[-1] if data_k else None
-            k_val = last_k[1] if last_k else "N/A"
-            k_time = last_k[0] if last_k else None
+            k_val = last_k["kp"] if last_k else "N/A"
+            k_time = last_k["time_tag"] if last_k else None
         
         if data_sfi and len(data_sfi) > 0:
             last_sfi = data_sfi[0]
@@ -211,7 +224,7 @@ def get_solar_data():
         logger.error("NOAA Connection Error")
         return {"status": "error", "error": "Errore connessione/DNS", "k_index": "N/A", "sfi": "N/A", "k_float": None, "sfi_float": None}
     except Exception as e:
-        logger.error(f"NOAA Error: {e}")
+        logger.error(f"NOAA Error type={type(e).__name__} args={e.args}: {e}")
         return {"status": "error", "error": str(e), "k_index": "N/A", "sfi": "N/A", "k_float": None, "sfi_float": None}
 
 # ============================================================
@@ -396,13 +409,13 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
     solar_logs = db.query(QSO).filter(QSO.mode == "PROP").order_by(QSO.timestamp.desc()).first()
     latest_alert = db.query(QSO).filter(QSO.mode == "ALERT").order_by(QSO.timestamp.desc()).first()
     
-    return templates.TemplateResponse("index.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "index.html", {
         "logs": logs,
         "total": total,
         "bands": bands,
         "solar_data": solar_logs.notes if solar_logs else "Non aggiornato",
-        "latest_alert": latest_alert.notes if latest_alert else None
+        "latest_alert": latest_alert.notes if latest_alert else None,
+        "callsign": get_callsign(db),
     })
 
 @app.post("/add")
@@ -626,30 +639,63 @@ def debug_pota_raw(limit: int = 3):
         }
     except Exception as e:
         return {"status": "error", "message": str(e)}
+def generate_rule_based_advice(solar: dict, pota: dict, bands: dict, modes: dict, ora: int) -> str:
+    k = solar.get("k_float")
+    sfi = solar.get("sfi_float")
+    periodo = "mattina" if 6 <= ora < 12 else "pomeriggio" if 12 <= ora < 18 else "sera" if 18 <= ora < 22 else "notte"
+    consigli = []
+
+    if k is not None:
+        if k < 3:
+            consigli.append(f"K-index eccellente ({k:.1f}): propagazione stabile, ottimo per DX sulle bande alte (17m, 15m, 12m, 10m).")
+        elif k < 5:
+            consigli.append(f"K-index discreto ({k:.1f}): propagazione accettabile, preferire 20m e 40m per collegamenti affidabili.")
+        else:
+            consigli.append(f"K-index disturbato ({k:.1f}): evitare bande alte, rifugiarsi su 40m e 80m per propagazione più stabile.")
+
+    if sfi is not None:
+        if sfi > 150:
+            consigli.append(f"Solar Flux molto alto ({sfi:.0f}): condizioni eccezionali per le bande da 10m a 20m, provare aperture verso America e Asia.")
+        elif sfi > 100:
+            consigli.append(f"Solar Flux buono ({sfi:.0f}): bande da 20m a 10m attive, buone possibilità per il DX intercontinentale.")
+        elif sfi > 70:
+            consigli.append(f"Solar Flux nella norma ({sfi:.0f}): puntare su 20m e 40m come bande principali.")
+        else:
+            consigli.append(f"Solar Flux basso ({sfi:.0f}): ciclo solare in fase discendente, concentrarsi su 40m e 80m specialmente di sera.")
+
+    pota_count = pota.get("count", 0)
+    by_band = pota.get("by_band", {})
+    top_bands = sorted(by_band.items(), key=lambda x: x[1], reverse=True)[:2]
+    if top_bands:
+        band_str = " e ".join(f"{b[0]} ({b[1]} spot)" for b in top_bands)
+        consigli.append(f"Attività POTA elevata su {band_str}: buon momento per ascoltare attivatori nei parchi.")
+    elif pota_count == 0 and ora >= 22:
+        consigli.append(f"Ora di {periodo}: attività ridotta, ottimo per ascolto su 40m e 80m nelle bande europee.")
+
+    if bands:
+        banda_preferita = max(bands, key=bands.get)
+        consigli.append(f"La tua banda preferita è {banda_preferita} ({bands[banda_preferita]} QSO): continua a monitorarla come riferimento personale.")
+
+    return "\n".join(f"• {c}" for c in consigli[:3]) if consigli else "Dati insufficienti per generare consigli."
+
+
 @app.get("/ai/analyze")
 def ai_analyze(db: Session = Depends(get_db)):
-    """
-    Analisi AI dei log + condizioni attuali
-    """
-    # Recupera ultimi 20 QSO reali
     logs = db.query(QSO).filter(QSO.frequency > 0).order_by(QSO.timestamp.desc()).limit(20).all()
-    
-    # Statistiche bande/modi dai log
+
     modes = {}
     bands = {}
     for log in logs:
         modes[log.mode] = modes.get(log.mode, 0) + 1
         band = get_band(log.frequency)
         bands[band] = bands.get(band, 0) + 1
-    
-    # Dati real-time
+
     solar = get_solar_data()
     pota = get_pota_spots("20m", "", 5)
-    
-    # Costruisci prompt
+
     ora = datetime.utcnow().hour
     periodo = "mattina" if 6 <= ora < 12 else "pomeriggio" if 12 <= ora < 18 else "sera" if 18 <= ora < 22 else "notte"
-    
+
     prompt = f"""Sei un consulente radioamatore esperto (IV3ZEW). Analizza questi dati operativi reali:
 
 STATISTICHE OPERATORE:
@@ -669,8 +715,25 @@ ORARIO: {periodo} (UTC)
 Dammi 3 consigli pratici specifici per queste condizioni. Max 4 righe. Tono professionale ma diretto."""
 
     response_text = ask_ai(prompt)
-    
+
+    if response_text.startswith("AI non disponibile"):
+        response_text = generate_rule_based_advice(solar, pota, bands, modes, ora)
+
     return {"response": response_text}
+
+@app.get("/settings/callsign")
+def read_callsign(db: Session = Depends(get_db)):
+    return {"callsign": get_callsign(db)}
+
+@app.post("/settings/callsign")
+def save_callsign(callsign: str = Form(...), db: Session = Depends(get_db)):
+    row = db.query(Settings).filter(Settings.key == "callsign").first()
+    if row:
+        row.value = callsign.upper()
+    else:
+        db.add(Settings(key="callsign", value=callsign.upper()))
+    db.commit()
+    return {"callsign": callsign.upper()}
 
 if __name__ == "__main__":
     import uvicorn
