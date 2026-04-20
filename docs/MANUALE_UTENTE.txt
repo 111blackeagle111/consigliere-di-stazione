@@ -41,31 +41,28 @@ file su una chiavetta USB.
 2. PERSONALIZZA IL TUO NOMINATIVO E LA POSIZIONE (IMPORTANTE)
 ================================================================================
 
-ATTENZIONE: Il programma viene consegnato con due impostazioni di esempio 
-che DEVI cambiare con i tuoi dati personali:
+Il programma viene consegnato con due impostazioni di esempio da cambiare:
 
-1. Il nominativo operatore (ora impostato su "I6502TR", che è il mio)
-2. Le coordinate geografiche (ora impostate su Trieste/Venezia)
+1. Il nominativo operatore (impostato su "I6502TR", che è il mio)
+2. Le coordinate geografiche (impostate su Trieste/Venezia)
 
-Se non modifichi questi dati, il Consigliere penserà di trovarsi a Trieste 
-e firmerà i log con il mio nominativo!
+Se non li cambi, il Consigliere penserà di trovarsi a Trieste e userà il
+mio nominativo nei log.
 
 
 2.1 Cambiare il nominativo operatore
 -------------------------------------
-File da modificare: templates/index.html (nella cartella templates)
+Non serve aprire nessun file. Si fa direttamente dalla pagina del programma.
 
 Procedura:
-1. Apri il file "index.html" con Blocco Note (Windows) o TextEdit (Mac)
-2. Usa la funzione "Trova" (tasti Ctrl+F) e cerca: I6502TR
-3. Troverai una riga simile a questa:
-   
-   <div class="subtitle">Operatore: <strong>I6502TR</strong> | Laboratorio AI Locale</div>
+1. Avvia il Consigliere e apri il browser su http://localhost:8080
+2. In cima alla pagina vedrai scritto: Operatore: I6502TR ✎
+3. Clicca sopra quella scritta
+4. Compare un campo di testo: cancella il nominativo e scrivi il tuo
+5. Premi Invio
 
-4. Sostituisci "I6502TR" con il tuo nominativo (es. "IK1ABC" o "IU5BCD")
-   ATTENZIONE: Non cancellare le parentesi <strong> e </strong>, né le 
-   virgolette. Cambia solo il testo tra di esse.
-5. Salva il file (stesso nome, stessa posizione)
+Il nominativo viene salvato automaticamente e resta memorizzato anche
+dopo aver spento e riacceso il programma.
 
 
 2.2 Cambiare la tua posizione geografica (QTH)
@@ -115,10 +112,10 @@ Su Linux/Raspberry Pi (versione attuale):
 2. Scrivi: python main.py e premi Invio
 3. Vedrai scritto: "Server avviato su http://0.0.0.0:8080"
 
-Su Windows (versione prossimamente disponibile):
-1. Doppio click sull'icona "Consigliere di Stazione"
+Su Windows:
+1. Doppio click su "ConsigliereDiStazione.exe"
 2. Aspetta qualche secondo che appaia la finestra nera (non chiuderla!)
-3. Si aprirà automaticamente il browser
+3. Il browser si apre da solo
 
 Collegamento:
 Apri il tuo browser e nella barra degli indirizzi scrivi esattamente:
@@ -230,9 +227,10 @@ E ti risponderà con un consiglio scritto in italiano, tipo:
 "Oggi pomeriggio propagazione eccellente sui 20 metri verso Est. 
 Il K-index è stabile a 2. Prova a cercare attivatori POTA sul 14.074 MHz."
 
-Nota: Per usare questa funzione devi aver installato anche "Ollama" con il 
-modello Llama (vedi istruzioni tecniche separate). Se non è installato, 
-ti avvisa che il Consigliere è "in ferie".
+Nota: Se hai installato Ollama con il modello Llama, i consigli vengono
+generati dall'intelligenza artificiale locale. Se Ollama non è installato,
+il Consigliere funziona lo stesso: i consigli vengono calcolati
+automaticamente dai dati NOAA e dall'attività POTA.
 
 
 ================================================================================
@@ -287,9 +285,11 @@ Coordinate stazione: Modificabili nel file main.py, variabili LAT e LNG
 (vedi sezione 2.2 di questo manuale)
 
 Note sui file:
-- templates/index.html = contiene il nominativo operatore e la grafica
-- main.py = contiene le coordinate geografiche e la logica del programma
-- swl_logs.db = il tuo database dei QSO (non cancellare!)
+- main.py = contiene le coordinate geografiche (LAT/LNG) e la logica
+- swl_logs.db = il tuo database dei QSO e le impostazioni (non cancellare!)
+
+Il nominativo operatore si cambia direttamente dalla pagina web,
+non serve più editare i file.
 
 
 ================================================================================
