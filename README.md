@@ -46,9 +46,9 @@ I QSO finiscono in un file SQLite sul tuo disco. Nient'altro.
 
 ### Windows
 
-1. Vai nella sezione [Releases](../../releases) e scarica `ConsigliereDiStazione-v1.0.zip`
-2. Estrai la cartella dove vuoi (Desktop, Documenti...)
-3. Doppio click su `ConsigliereDiStazione.exe`
+1. Scarica `ConsigliereDiStazione.exe` da questa pagina (tasto verde "Code" → o direttamente dalla lista file)
+2. Mettilo dove vuoi (Desktop, Documenti...)
+3. Doppio click
 4. Il browser si apre da solo su `http://localhost:8080`
 
 Python non serve. Non bisogna installare niente.
