@@ -74,3 +74,7 @@ ollama pull llama3.2
 ```
 
 Senza Ollama funziona lo stesso — i consigli si basano sui dati NOAA.
+
+## 📖 Press / Article
+
+[I Built an AI Ham Radio Assistant That Runs Entirely Offline](https://medium.com/@andrea.maccafeo/i-built-an-ai-ham-radio-assistant-that-runs-entirely-offline-because-your-qso-log-is-none-of-992cac4230cf) — Medium
