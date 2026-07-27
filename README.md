@@ -70,6 +70,19 @@ Se vuoi il Consigliere AI con Ollama:
 
 ```bash
 curl -fsSL https://ollama.com/install.sh | sh
+ollama pull amaccafeo/swlbot:latest
+```
+
+🇮🇹 **Modello consigliato:** [`amaccafeo/swlbot`](https://ollama.com/amaccafeo/swlbot) — modello fine-tuned in italiano, ottimizzato per il dominio radioamatoriale (Qwen2 3.1B, Q4_K_M, ~1.9 GB).
+
+📋 **Requisiti:**
+- **RAM:** 4 GB minimi, 8 GB consigliati
+- **Disco:** ~2 GB liberi
+- **Testato su:** PC x86_64, Raspberry Pi 4 (4 GB+) e Raspberry Pi 5
+
+In alternativa, puoi usare un modello generico (non specializzato):
+
+```bash
 ollama pull llama3.2
 ```
 
