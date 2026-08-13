@@ -123,16 +123,27 @@ I tuoi dati sono già salvati — non rischi di perdere nulla.
 7. BACKUP DEI TUOI LOG
 ================================================================================
 
-Tutti i tuoi QSO sono salvati in un file chiamato "swl_logs.db" nella
-stessa cartella dove si trova ConsigliereDiStazione.exe.
+Tutti i tuoi QSO sono salvati nel file:
+
+%LOCALAPPDATA%\ConsigliereDiStazione\swl_logs.db
+
+Per aprire velocemente la cartella, premi WIN+R, incolla:
+%LOCALAPPDATA%\ConsigliereDiStazione
+e premi Invio.
+
+Compatibilità: se una versione precedente ha già creato "swl_logs.db"
+accanto a ConsigliereDiStazione.exe, il programma continua a usare quel
+file. In questo modo, dopo l'aggiornamento, i vecchi QSO restano visibili.
 
 Per fare un backup:
 1. Copia quel file su una chiavetta USB o in un'altra cartella
 2. Fallo ogni tanto, specialmente dopo sessioni importanti
 
 Per ripristinare i log su un altro computer:
-Copia swl_logs.db nella stessa cartella dell'exe sul nuovo PC.
-Avvia il programma: troverai tutti i tuoi contatti.
+1. Avvia e chiudi una volta il programma sul nuovo PC
+2. Apri %LOCALAPPDATA%\ConsigliereDiStazione
+3. Sostituisci swl_logs.db con la copia di backup
+4. Riavvia il programma: troverai tutti i tuoi contatti
 
 
 ================================================================================

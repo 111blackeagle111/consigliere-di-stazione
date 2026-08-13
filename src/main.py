@@ -19,6 +19,24 @@ import sys
 from pathlib import Path
 
 
+APP_DATA_DIR = "ConsigliereDiStazione"
+DATABASE_NAME = "swl_logs.db"
+
+
+def get_user_data_path() -> Path:
+    """Return a writable, per-user directory for persistent application data."""
+    override = os.getenv("CONSIGLIERE_DATA_DIR")
+    if override:
+        data_path = Path(override).expanduser()
+    elif sys.platform == "win32":
+        data_path = Path(os.getenv("LOCALAPPDATA", Path.home())) / APP_DATA_DIR
+    else:
+        data_path = Path(os.getenv("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "consigliere-di-stazione"
+
+    data_path.mkdir(parents=True, exist_ok=True)
+    return data_path
+
+
 def get_base_path() -> Path:
     """Path alle risorse bundled (templates). In PyInstaller punta a _MEIPASS."""
     if getattr(sys, 'frozen', False):
@@ -27,9 +45,15 @@ def get_base_path() -> Path:
 
 
 def get_data_path() -> Path:
-    """Path scrivibile per il DB. In PyInstaller punta alla dir dell'exe."""
+    """Return the DB directory while preserving existing portable installations."""
+    if os.getenv("CONSIGLIERE_DATA_DIR"):
+        return get_user_data_path()
+
     if getattr(sys, 'frozen', False):
-        return Path(sys.executable).parent
+        legacy_path = Path(sys.executable).parent
+        if (legacy_path / DATABASE_NAME).exists():
+            return legacy_path
+        return get_user_data_path()
     return Path(__file__).parent.parent
 
 
@@ -37,8 +61,7 @@ from fastapi import FastAPI, Depends, Request, Form, BackgroundTasks
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import StreamingResponse
 from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, Text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from datetime import datetime, timedelta
 import requests
 import json
@@ -56,7 +79,7 @@ logger = logging.getLogger(__name__)
 # ============================================================
 
 Base = declarative_base()
-_db_path = get_data_path() / "swl_logs.db"
+_db_path = get_data_path() / DATABASE_NAME
 engine = create_engine(f'sqlite:///{_db_path}', connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -125,16 +148,32 @@ def get_band(freq_mhz: float) -> str:
             return name
     return f"{freq_mhz:.3f}MHz"
 
-def ask_ai(prompt: str) -> str:
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "amaccafeo/swlbot:latest")
+OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "4096"))
+OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "60"))
+
+
+def ask_ai(prompt: str) -> Optional[str]:
     try:
         response = requests.post(
-            "http://localhost:11434/api/generate",
-            json={"model": "llama3.2:3b", "prompt": prompt, "stream": False},
-            timeout=30
+            OLLAMA_URL,
+            json={
+                "model": OLLAMA_MODEL,
+                "prompt": prompt,
+                "stream": False,
+                "options": {"num_ctx": OLLAMA_NUM_CTX},
+            },
+            timeout=OLLAMA_TIMEOUT,
         )
-        return response.json().get("response", "Errore AI")
-    except Exception as e:
-        return f"AI non disponibile: {str(e)}"
+        response.raise_for_status()
+        response_text = response.json().get("response")
+        if not isinstance(response_text, str) or not response_text.strip():
+            raise ValueError("risposta Ollama vuota o non valida")
+        return response_text.strip()
+    except (requests.RequestException, ValueError, TypeError) as exc:
+        logger.warning("Ollama non disponibile: %s", exc)
+        return None
 
 # ============================================================
 # ALERT SYSTEM
@@ -383,9 +422,16 @@ DATI:
 Istruzioni: Tono professionale ma appassionato, italiano corretto, max 280 caratteri."""
 
     ai_response = ask_ai(prompt)
+    source = "ollama"
+    if not ai_response:
+        source = "rules"
+        fallback_parts = eval_data["opportunities"] + eval_data["details"] + eval_data["warnings"]
+        ai_response = " ".join(fallback_parts[:3]) or f"Condizioni {level}: score {score}/100."
+        ai_response = ai_response[:280]
     
     return {
         "message": ai_response.strip(),
+        "source": source,
         "level": level,
         "score": score,
         "timestamp": datetime.now().isoformat(),
@@ -715,11 +761,12 @@ ORARIO: {periodo} (UTC)
 Dammi 3 consigli pratici specifici per queste condizioni. Max 4 righe. Tono professionale ma diretto."""
 
     response_text = ask_ai(prompt)
-
-    if response_text.startswith("AI non disponibile"):
+    source = "ollama"
+    if not response_text:
         response_text = generate_rule_based_advice(solar, pota, bands, modes, ora)
+        source = "rules"
 
-    return {"response": response_text}
+    return {"response": response_text, "source": source, "model": OLLAMA_MODEL if source == "ollama" else None}
 
 @app.get("/settings/callsign")
 def read_callsign(db: Session = Depends(get_db)):

@@ -8,7 +8,7 @@
 
 Il Consigliere di Stazione è quello che avevi in shack prima del computer: il socio esperto che guardava il K-index sul giornale e sapeva già che i 20 metri stavano per aprirsi.
 
-Fa esattamente quello, ma in digitale. Registra i QSO, scarica i dati solari da NOAA, controlla l'attività POTA in tempo reale, e ti dice cosa fare con tutto questo. Senza mandare nulla da nessuna parte.
+Fa esattamente quello, ma in digitale. Registra i QSO, scarica i dati solari da NOAA, controlla l'attività POTA in tempo reale, e ti dice cosa fare con tutto questo. I dati del registro non vengono inviati a servizi esterni.
 
 **Nessun cloud. Nessun abbonamento. I tuoi log restano nello shack.**
 
@@ -28,7 +28,7 @@ Tasti grandi, colori che si leggono con qualsiasi luce, layout che non richiede 
 
 **Dati NOAA** — K-index e Solar Flux Index aggiornati con un click. Puoi confrontare un ascolto difficile di tre giorni fa con le condizioni solari di quel momento esatto.
 
-**Il Consigliere** — legge i tuoi log, prende i dati NOAA e l'attività POTA e ti dice dove e quando ascoltare. Funziona con Ollama (AI locale, niente dati in giro). Se Ollama non è installato, i consigli vengono generati comunque dai dati solari in automatico.
+**Il Consigliere** — analizza localmente le statistiche dei tuoi log, prende i dati NOAA e l'attività POTA e ti dice dove e quando ascoltare. Usa per impostazione predefinita il modello SWL specializzato pubblicato su Ollama. Se Ollama non è disponibile, passa automaticamente al motore deterministico basato sui dati reali.
 
 **Stazioni attive (POTA)** — chi sta trasmettendo adesso, su quale banda, in quale parco. Filtrabile per banda e modo.
 
@@ -38,7 +38,7 @@ Tasti grandi, colori che si leggono con qualsiasi luce, layout che non richiede 
 
 Non c'è un server. Non c'è un account. Non c'è niente da pagare.
 
-I QSO finiscono in un file SQLite sul tuo disco. Nient'altro.
+I QSO finiscono in un file SQLite sul tuo disco e non vengono inclusi nelle richieste NOAA o POTA. Le uniche comunicazioni esterne dell'app sono le letture dei dati pubblici NOAA e POTA; l'inferenza AI avviene su `localhost` tramite Ollama.
 
 ---
 
@@ -80,13 +80,30 @@ ollama pull amaccafeo/swlbot:latest
 - **Disco:** ~2 GB liberi
 - **Testato su:** PC x86_64, Raspberry Pi 4 (4 GB+) e Raspberry Pi 5
 
+Il modello specializzato è quello usato automaticamente dall'app. La richiesta imposta un contesto operativo di 4.096 token, configurabile tramite `OLLAMA_NUM_CTX`.
+
 In alternativa, puoi usare un modello generico (non specializzato):
 
 ```bash
-ollama pull llama3.2
+ollama pull llama3.2:3b
+OLLAMA_MODEL=llama3.2:3b python src/main.py
 ```
 
-Senza Ollama funziona lo stesso — i consigli si basano sui dati NOAA.
+Le variabili disponibili sono:
+
+- `OLLAMA_MODEL`: modello da usare;
+- `OLLAMA_URL`: endpoint `/api/generate` di Ollama;
+- `OLLAMA_NUM_CTX`: contesto effettivo della richiesta, `4096` per impostazione predefinita;
+- `OLLAMA_TIMEOUT`: timeout in secondi, `60` per impostazione predefinita;
+- `CONSIGLIERE_DATA_DIR`: directory personalizzata per `swl_logs.db`.
+
+Senza Ollama funziona lo stesso: l'interfaccia segnala chiaramente che il consiglio è stato calcolato dal motore locale a regole.
+
+## 💾 Database e architettura
+
+SQLite è gestito tramite SQLAlchemy. Durante lo sviluppo il database rimane nella directory del progetto. Le nuove installazioni Windows salvano i dati in `%LOCALAPPDATA%\ConsigliereDiStazione\swl_logs.db`; Linux usa `${XDG_DATA_HOME:-~/.local/share}/consigliere-di-stazione/swl_logs.db`.
+
+Per non nascondere i registri esistenti, l'eseguibile continua a usare automaticamente un vecchio `swl_logs.db` trovato accanto al file `.exe`. Puoi quindi aggiornare senza spostare subito il database.
 
 ## 📖 Press / Article
 

@@ -612,7 +612,9 @@
                 const data = await response.json();
                 
                 if (!data.response || data.response === 'undefined') {
-                    resp.innerHTML = '⚠️ <strong>AI Offline:</strong><br>Ollama non risponde su localhost:11434.<br><br>I controlli da fare:<br>1. Avvia terminale: <code>ollama serve</code><br>2. Installa modello: <code>ollama pull llama3.2:3b</code><br>3. Ricarica la pagina';
+                    resp.innerHTML = '⚠️ <strong>Consiglio non disponibile.</strong><br>Controlla i dati NOAA e riprova.';
+                } else if (data.source === 'rules') {
+                    resp.innerHTML = '🧭 <strong>CONSIGLIO LOCALE:</strong><br><small>Ollama non disponibile: risposta calcolata dai dati NOAA, POTA e dal registro.</small>\n\n' + data.response;
                 } else {
                     resp.innerHTML = '🎯 <strong>CONSIGLI AI:</strong>\n\n' + data.response;
                 }

@@ -32,9 +32,15 @@ a siti internet né inserire password. Il quaderno di bordo è tuo e resta
 nello shack.
 
 Dove si mettono i file:
-Il programma crea automaticamente nella sua cartella il file "swl_logs.db": 
-questo È il tuo registro completo. Per fare un backup, basta copiare questo 
-file su una chiavetta USB.
+Su Windows il programma crea il registro in:
+%LOCALAPPDATA%\ConsigliereDiStazione\swl_logs.db
+
+Su Linux usa:
+~/.local/share/consigliere-di-stazione/swl_logs.db
+
+Se trova un registro creato da una vecchia versione accanto all'eseguibile,
+continua a usarlo. Per fare un backup basta copiare "swl_logs.db" su una
+chiavetta USB.
 
 
 ================================================================================
@@ -227,7 +233,7 @@ E ti risponderà con un consiglio scritto in italiano, tipo:
 "Oggi pomeriggio propagazione eccellente sui 20 metri verso Est. 
 Il K-index è stabile a 2. Prova a cercare attivatori POTA sul 14.074 MHz."
 
-Nota: Se hai installato Ollama con il modello Llama, i consigli vengono
+Nota: Se hai installato Ollama con il modello SWL consigliato, i consigli vengono
 generati dall'intelligenza artificiale locale. Se Ollama non è installato,
 il Consigliere funziona lo stesso: i consigli vengono calcolati
 automaticamente dai dati NOAA e dall'attività POTA.
@@ -244,9 +250,10 @@ automaticamente dai dati NOAA e dall'attività POTA.
   degli indirizzi
 - Prova a ricaricare la pagina premendo F5
 
-...il Consigliere non risponde
-- Se l'alert AI dice "offline", significa che Ollama non è installato. 
-  Per ora puoi usare comunque tutte le altre funzioni (logging e dati NOAA).
+...il Consigliere mostra "CONSIGLIO LOCALE"
+- Ollama non è disponibile oppure il modello non è installato.
+- Il consiglio mostrato è comunque valido: viene calcolato localmente dai
+  dati NOAA, dall'attività POTA e dalle statistiche del registro.
 
 ...i dati NOAA non arrivano
 - Controlla che il computer sia collegato a internet
@@ -255,10 +262,8 @@ automaticamente dai dati NOAA e dall'attività POTA.
 - Se il sito NOAA è in manutenzione, aspetta qualche minuto e riprova
 
 ...ho paura di perdere i miei QSO
-- Il file "swl_logs.db" nella cartella del programma È il tuo registro. 
-  Copialo periodicamente su USB come backup.
-- È un file SQLite standard: puoi aprirlo anche con Excel o LibreOffice 
-  se vuoi stampare i contatti.
+- Il file "swl_logs.db" È il tuo registro. Copialo periodicamente su USB.
+- È un file SQLite standard: puoi ispezionarlo con DB Browser for SQLite.
 
 ...voglio spegnere tutto
 - Chiudi la scheda del browser
@@ -274,19 +279,20 @@ automaticamente dai dati NOAA e dall'attività POTA.
 Porta di default: 8080. Se è occupata, modifica l'ultima riga di main.py 
 (cambia port=8080 con un altro numero, es. 8081)
 
-Database: SQLite, tabella "qsos". 
+Database: SQLite gestito tramite SQLAlchemy, tabella "qsos".
 Colonne: id, timestamp, frequency, mode, call_sign, rst_received, 
 locator, notes
 
-Modelli AI: Compatibile con Ollama (llama3.2:3b di default). 
-Cambiabile modificando la funzione ask_ai() in main.py
+Modelli AI: compatibile con Ollama; il modello SWL specializzato è il default.
+Configurazione tramite OLLAMA_MODEL, OLLAMA_URL, OLLAMA_NUM_CTX e
+OLLAMA_TIMEOUT. Il contesto operativo predefinito è 4096 token.
 
 Coordinate stazione: Modificabili nel file main.py, variabili LAT e LNG 
 (vedi sezione 2.2 di questo manuale)
 
 Note sui file:
 - main.py = contiene le coordinate geografiche (LAT/LNG) e la logica
-- swl_logs.db = il tuo database dei QSO e le impostazioni (non cancellare!)
+- swl_logs.db = il database dei QSO e delle impostazioni (non cancellare!)
 
 Il nominativo operatore si cambia direttamente dalla pagina web,
 non serve più editare i file.
