@@ -1,6 +1,15 @@
 name: Build Windows executable
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - "templates/**"
+      - "requirements.txt"
+      - "build/**"
+      - ".github/workflows/build-windows.yml"
   workflow_dispatch:
     inputs:
       publish_binary:
@@ -49,7 +58,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish rebuilt executable
-        if: ${{ inputs.publish_binary }}
+        if: ${{ github.event_name == 'push' || inputs.publish_binary }}
         shell: pwsh
         run: |
           Copy-Item "dist/ConsigliereDiStazione.exe" "ConsigliereDiStazione.exe" -Force
