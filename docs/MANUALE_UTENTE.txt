@@ -256,6 +256,11 @@ Il percorso di generazione è:
    Se anche Ollama non risponde, l'app mostra "CONSIGLIO LOCALE" calcolato
    senza modello linguistico.
 
+Prima di mostrare un testo, una barriera deterministica rifiuta frequenze non
+presenti nei dati correnti e deduzioni non supportate su MUF, rumore, DX o
+aperture. Se il RAG risponde ma non supera il controllo, la pagina mostra
+"CONSIGLIO QWEN DOPO VERIFICA RAG" e Qwen riformula soltanto le regole locali.
+
 L'integrazione con il modello locale dell'autore è sperimentale e in fase di
 sviluppo. Nessuna delle tre modalità garantisce aperture, direzioni o risultati:
 verifica sempre i consigli con NOAA, POTA e segnali realmente ricevuti.

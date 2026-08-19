@@ -153,6 +153,38 @@ class RagClientTests(unittest.TestCase):
         )
         direct.assert_called_once()
 
+    def test_advice_guard_rejects_unsupported_frequency_and_propagation_claims(self) -> None:
+        current_data = (
+            "K-index: 1.7\nConteggi reali per banda: {'20m': 50}\n"
+            "VALUTAZIONE DETERMINISTICA DELL'APP (non contraddire):\n"
+            "Gli spot indicano attività osservata, non un'apertura garantita."
+        )
+        self.assertIn(
+            "frequenza non presente",
+            main.find_unsupported_advice_claim("Evita le frequenze sopra 15 MHz.", current_data),
+        )
+        self.assertIn(
+            "deduzione non supportata",
+            main.find_unsupported_advice_claim("La MUF e lo strato D limitano il DX.", current_data),
+        )
+        self.assertIsNone(main.find_unsupported_advice_claim(
+            "Gli spot su 20m indicano attività osservata, non un'apertura garantita.",
+            current_data,
+        ))
+
+    @patch("src.main.ask_direct_llm", return_value="Attività POTA osservata su 20m.")
+    @patch("src.main.ask_rag", return_value="Evita le bande sopra 15 MHz per la MUF.")
+    def test_ask_ai_discards_unsupported_rag_and_uses_safe_direct_fallback(
+        self, ask_rag: Mock, direct: Mock
+    ) -> None:
+        result = main.ask_ai(
+            "Consiglio breve",
+            "Banda 20m\nVALUTAZIONE DETERMINISTICA DELL'APP (non contraddire):\n"
+            "Attività POTA osservata su 20m.",
+        )
+        self.assertEqual(result, ("Attività POTA osservata su 20m.", "llm-direct-guarded"))
+        direct.assert_called_once()
+
     @patch("src.main.ask_direct_llm", return_value=None)
     @patch("src.main.ask_rag", return_value=None)
     def test_ask_ai_reports_rules_when_both_ai_services_fail(self, ask_rag: Mock, direct: Mock) -> None:
@@ -226,6 +258,17 @@ class RagClientTests(unittest.TestCase):
         self.assertNotIn("40m (99 spot)", advice)
         self.assertIn("storico", advice)
         self.assertIn("non l'attività POTA corrente", advice)
+
+    def test_pota_activity_is_not_labeled_as_a_band_opening(self) -> None:
+        evaluation = main.evaluate_conditions(
+            {"k_float": 2.0, "sfi_float": 120.0},
+            {"by_band": {"10m": 8, "6m": 1}},
+        )
+
+        combined = " ".join(evaluation["opportunities"] + evaluation["details"])
+        self.assertIn("Attività POTA osservata sulle bande alte", combined)
+        self.assertNotIn("Apertura bande alte", combined)
+        self.assertEqual(evaluation["level"], "operatività elevata")
 
     @patch("src.main.requests.get")
     def test_all_band_pota_scan_counts_every_recognized_band(self, get: Mock) -> None:
@@ -333,6 +376,9 @@ class RagClientTests(unittest.TestCase):
         self.assertIn("('20m', 10)", current_data)
         self.assertIn("QSO totali nello storico: 0", current_data)
         self.assertIn("'distance_km': 111", current_data)
+        instruction = ask_ai.call_args.args[0]
+        self.assertIn("non qualità della propagazione", instruction)
+        self.assertIn("non dedurre DX", instruction)
 
     def test_qso_validation_normalizes_and_rejects_invalid_values(self) -> None:
         values = main.validate_qso_fields(

@@ -776,6 +776,8 @@
                 if (d.status === 'alert_generated') {
                     const sourceWarning = d.alert.source === 'llm-direct'
                         ? '<br><br>⚠️ <small>RAG non disponibile: alert generato da Qwen senza consultare il corpus tecnico.</small>'
+                        : d.alert.source === 'llm-direct-guarded'
+                            ? '<br><br>🛡️ <small>La risposta RAG conteneva deduzioni non supportate ed è stata scartata; alert riformulato da Qwen sulle sole regole verificate.</small>'
                         : d.alert.source === 'rules'
                             ? '<br><br>🧭 <small>RAG e LLM non disponibili: alert calcolato con le regole locali.</small>'
                             : '';
@@ -932,6 +934,8 @@
                     resp.innerHTML = '🧭 <strong>CONSIGLIO LOCALE:</strong><br><small>RAG e LLM non disponibili: risposta calcolata dai dati NOAA, POTA e dal registro.</small>\n\n' + escapeHtml(data.response);
                 } else if (data.source === 'llm-direct') {
                     resp.innerHTML = '⚠️ <strong>CONSIGLIO QWEN SENZA RAG:</strong><br><small>Il corpus tecnico non è disponibile: risposta generata soltanto dai dati correnti e quindi meno verificabile.</small>\n\n' + escapeHtml(data.response);
+                } else if (data.source === 'llm-direct-guarded') {
+                    resp.innerHTML = '🛡️ <strong>CONSIGLIO QWEN DOPO VERIFICA RAG:</strong><br><small>La risposta RAG conteneva frequenze o deduzioni non supportate ed è stata scartata. Questo testo usa soltanto la valutazione deterministica verificata.</small>\n\n' + escapeHtml(data.response);
                 } else {
                     resp.innerHTML = '🎯 <strong>CONSIGLI SWLBOT RAG:</strong>\n\n' + escapeHtml(data.response);
                 }

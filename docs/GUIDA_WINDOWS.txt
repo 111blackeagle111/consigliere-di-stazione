@@ -150,6 +150,10 @@ componenti il programma continua a funzionare e mostra "CONSIGLIO LOCALE".
 "CONSIGLIO QWEN SENZA RAG" significa che Qwen è attivo ma non ha consultato
 il corpus tecnico. L'avviso è intenzionale: la risposta è meno verificabile.
 
+"CONSIGLIO QWEN DOPO VERIFICA RAG" significa invece che il RAG ha risposto, ma
+la sua risposta conteneva frequenze o deduzioni non supportate dai dati live ed
+è stata scartata. Qwen ha quindi riformulato soltanto le regole verificate.
+
 L'integrazione con il modello linguistico locale dell'autore è sperimentale e
 in fase di sviluppo. Controlla sempre il consiglio confrontandolo con K-index,
 SFI, spot POTA reali e segnali effettivamente ricevuti.

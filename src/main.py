@@ -416,14 +416,49 @@ def ask_direct_llm(instruction: str, current_data: str) -> Optional[str]:
         return None
 
 
+UNSUPPORTED_LIVE_CLAIMS = (
+    r"\bmuf\b", r"strato\s+d", r"assorb", r"\brumore\b", r"\bdx\b",
+    r"\bskip\b", r"\bfading\b", r"greyline",
+    r"propagazione\s+(?:è|e')\s+(?:stabile|ottimale|eccellente|garantita)",
+    r"evita(?:re)?\s+(?:le\s+|i\s+)?bande",
+)
+FREQUENCY_CLAIM_PATTERN = re.compile(
+    r"(?<!\w)\d+(?:[.,]\d+)?\s*(?:mhz|khz|hz)\b", re.IGNORECASE
+)
+
+
+def find_unsupported_advice_claim(response_text: str, current_data: str) -> Optional[str]:
+    """Return the first real-time claim not grounded in the supplied live data."""
+    response_lower = response_text.lower()
+    data_lower = current_data.lower()
+    for frequency in FREQUENCY_CLAIM_PATTERN.findall(response_text):
+        normalized = re.sub(r"\s+", "", frequency.lower().replace(",", "."))
+        normalized_data = re.sub(r"\s+", "", data_lower.replace(",", "."))
+        if normalized not in normalized_data:
+            return f"frequenza non presente nei dati correnti: {frequency}"
+    for pattern in UNSUPPORTED_LIVE_CLAIMS:
+        match = re.search(pattern, response_lower)
+        if match and not re.search(pattern, data_lower):
+            return f"deduzione non supportata: {match.group(0)}"
+    return None
+
+
 def ask_ai(instruction: str, current_data: str) -> tuple[Optional[str], str]:
+    rag_rejected = False
     rag_response = ask_rag(instruction, current_data)
     if rag_response:
-        return rag_response, "swlbot-rag"
+        unsupported = find_unsupported_advice_claim(rag_response, current_data)
+        if not unsupported:
+            return rag_response, "swlbot-rag"
+        logger.warning("Risposta swlbot RAG scartata: %s", unsupported)
+        rag_rejected = True
 
     direct_response = ask_direct_llm(instruction, current_data)
     if direct_response:
-        return direct_response, "llm-direct"
+        unsupported = find_unsupported_advice_claim(direct_response, current_data)
+        if not unsupported:
+            return direct_response, "llm-direct-guarded" if rag_rejected else "llm-direct"
+        logger.warning("Risposta LLM diretto scartata: %s", unsupported)
 
     return None, "rules"
 
@@ -707,10 +742,10 @@ def evaluate_conditions(solar_data: dict, pota_data: dict) -> dict:
     if k is not None:
         if k < SolarThresholds.K_INDEX_GOOD:
             score += 40
-            opportunities.append(f"K-index eccellente ({k})")
+            opportunities.append(f"Campo geomagnetico quieto (K {k})")
         elif k < SolarThresholds.K_INDEX_FAIR:
             score += 20
-            details.append(f"K-index discreto ({k})")
+            details.append(f"Campo geomagnetico moderato (K {k})")
         else:
             score -= 20
             warnings.append(f"K-index disturbato ({k})")
@@ -718,7 +753,7 @@ def evaluate_conditions(solar_data: dict, pota_data: dict) -> dict:
     if sfi is not None:
         if sfi > SolarThresholds.SFI_GOOD:
             score += 40
-            opportunities.append(f"SFI eccellente ({sfi})")
+            opportunities.append(f"SFI alto ({sfi})")
         elif sfi > SolarThresholds.SFI_FAIR:
             score += 20
             details.append(f"SFI discreto ({sfi})")
@@ -738,12 +773,19 @@ def evaluate_conditions(solar_data: dict, pota_data: dict) -> dict:
         details.append(f"Attività moderata ({total_activity} spot)")
     
     if by_band.get("10m", 0) > 5 or by_band.get("6m", 0) > 0:
-        opportunities.append("Apertura bande alte")
+        opportunities.append("Attività POTA osservata sulle bande alte")
         score += 15
+
+    level = (
+        "operatività elevata" if score >= 70 else
+        "operatività buona" if score >= 50 else
+        "operatività moderata" if score >= 30 else
+        "operatività limitata"
+    )
     
     return {
         "score": min(100, max(0, score)),
-        "level": "eccellenti" if score >= 70 else "buone" if score >= 50 else "discrete" if score >= 30 else "scarse",
+        "level": level,
         "details": details,
         "warnings": warnings,
         "opportunities": opportunities,
@@ -766,7 +808,9 @@ def generate_smart_alert(eval_data: dict, solar_data: dict, pota_data: dict) -> 
         "Genera un breve messaggio di alert sulle condizioni di propagazione attuali. "
         "Usa un tono professionale ma appassionato, italiano corretto, massimo 3 frasi "
         "e 280 caratteri. Non indicare frequenze o stazioni specifiche che non compaiono "
-        "nei dati correnti."
+        "nei dati correnti. Gli spot POTA indicano attività, non dimostrano aperture, DX, "
+        "qualità della propagazione o basso rumore. Non convertire i nomi delle bande in "
+        "frequenze numeriche e non presentare le condizioni come ottimali o garantite."
     )
     geo_summary = nearest_spots_summary(pota_data, limit=2)
     fallback_parts = eval_data["opportunities"] + eval_data["details"] + eval_data["warnings"]
@@ -1062,13 +1106,17 @@ def fetch_solar(db: Session = Depends(get_db)):
     try:
         k = float(solar.get('k_index', 0))
         if k < 3:
-            note += "Eccellente"
-            interpretation = f"K-index {k}: Condizioni eccellenti."
+            note += "Campo geomagnetico quieto"
+            interpretation = (
+                f"K-index {k}: campo geomagnetico quieto; da solo non indica "
+                "quali bande siano aperte."
+            )
         elif k < 5:
-            note += "Buona"
+            note += "Campo geomagnetico moderato"
+            interpretation = f"K-index {k}: attività geomagnetica moderata."
         else:
-            note += "Disturbata"
-            interpretation = f"K-index {k}: Condizioni disturbate."
+            note += "Campo geomagnetico disturbato"
+            interpretation = f"K-index {k}: campo geomagnetico disturbato; verifica i segnali reali."
     except:
         note += "Dati aggiornati"
     
@@ -1361,7 +1409,11 @@ def ai_analyze(db: Session = Depends(get_db)):
     instruction = (
         "Analizza i dati operativi reali e fornisci 3 consigli pratici specifici per "
         "queste condizioni. Massimo 4 righe, tono professionale ma diretto. Non presentare "
-        "frequenze o stazioni tratte dal corpus come se fossero attive adesso."
+        "frequenze o stazioni tratte dal corpus come se fossero attive adesso. Gli spot POTA "
+        "misurano attività, non qualità della propagazione. Non definire la propagazione "
+        "ottimale o garantita e non dedurre DX, rumore o aperture dai soli conteggi. Non "
+        "convertire nomi di banda come 20m o 40m in frequenze numeriche se tali frequenze "
+        "non compaiono esplicitamente nei dati correnti."
     )
     current_data = f"""
 STATISTICHE OPERATORE:
@@ -1392,7 +1444,10 @@ VALUTAZIONE DETERMINISTICA DELL'APP (non contraddire):
         response_text = rule_guidance
         source = "rules"
 
-    model = "swlbot-rag" if source == "swlbot-rag" else DIRECT_LLM_MODEL if source == "llm-direct" else None
+    model = (
+        "swlbot-rag" if source == "swlbot-rag" else
+        DIRECT_LLM_MODEL if source.startswith("llm-direct") else None
+    )
     return {"response": response_text, "source": source, "model": model}
 
 @app.get("/settings/callsign")

@@ -4,6 +4,7 @@
 
 - Analisi AI dell'intero storico tramite aggregazioni SQLite, insieme a NOAA e POTA su tutte le bande.
 - Fallback espliciti: swlbot RAG, Qwen locale senza RAG, regole deterministiche.
+- Barriera deterministica che scarta frequenze e deduzioni operative non supportate dai dati live, con avviso distinto quando interviene.
 - QTH operatore con coordinate Maidenhead, distanza, azimut e direzione degli spot POTA.
 - Storico completo filtrabile e paginato, con modifica ed eliminazione dei QSO manuali.
 - Esportazione del registro in CSV e ADIF e backup SQLite scaricabile.

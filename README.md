@@ -55,6 +55,8 @@ Il percorso di generazione è sempre locale:
 2. se il RAG non risponde, **Qwen diretto** vincolato alla valutazione deterministica, con un avviso visibile;
 3. se anche Ollama non risponde, **regole locali**.
 
+Una barriera deterministica controlla inoltre le risposte di RAG e Qwen: frequenze non presenti nei dati live e deduzioni non supportate su MUF, rumore, DX o aperture vengono scartate. Se il RAG risponde ma non supera questa verifica, l'interfaccia lo dichiara e usa Qwen soltanto per riformulare le regole verificate.
+
 ---
 
 ## 🔒 Privacy
