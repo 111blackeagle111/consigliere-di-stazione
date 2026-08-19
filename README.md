@@ -95,9 +95,23 @@ python3 -m venv .venv
 
 L'app è disponibile su `http://localhost:8080`.
 
+### Requisiti in breve
+
+Non è stato ancora stabilito un minimo certificato con benchmark comparabili. L'applicazione base è stata usata anche su Raspberry Pi 4 con 4 GB; l'eseguibile Windows attuale è a 64 bit e la pipeline usa Python 3.12. Il registro funziona senza Internet, mentre NOAA e POTA richiedono una connessione.
+
+Qwen e swlbot RAG sono facoltativi. Con il modello predefinito attuale, 4 GB non sono un obiettivo realistico per l'intero sistema: 8 GB sono una base pratica da valutare e 16 GB sono consigliati quando app, modello e RAG girano sullo stesso computer. La pagina [Requisiti di sistema](docs/REQUISITI.md) separa i dati misurati dalle raccomandazioni.
+
 ### Modello locale e RAG, facoltativi
 
-Per ottenere testi generati dal modello, installa Ollama e avvia il modello configurato. Per aggiungere anche il corpus tecnico, avvia swlbot RAG sulla porta 8081:
+Per ottenere testi generati dal modello, installa Ollama dalla [pagina ufficiale](https://ollama.com/download), seguendo le istruzioni aggiornate per il tuo sistema operativo. Poi scarica il modello configurato:
+
+```bash
+ollama pull qwen3.5:4b
+```
+
+La procedura completa, comprese verifica dell'installazione e configurazione facoltativa del RAG, è nella pagina [Requisiti di sistema](docs/REQUISITI.md#installare-i-componenti).
+
+Per aggiungere anche il corpus tecnico, avvia swlbot RAG sulla porta 8081:
 
 ```bash
 cd ../swl-rag
@@ -110,8 +124,6 @@ In un altro terminale avvia il Consigliere:
 cd consigliere-di-stazione
 .venv/bin/python src/main.py
 ```
-
-Per modello e RAG sono consigliati almeno 8 GB di RAM; 4 GB possono bastare con configurazioni leggere. Serve inoltre spazio su disco per Ollama, il modello e l'indice ChromaDB. Il progetto è stato provato su PC x86_64, Raspberry Pi 4 con almeno 4 GB e Raspberry Pi 5.
 
 Le variabili disponibili sono:
 

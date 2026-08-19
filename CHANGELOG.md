@@ -12,7 +12,7 @@
 - Gestione coerente degli orari: visualizzazione locale, colonne locale/UTC nel CSV e data UTC nell'esportazione ADIF, senza riscrivere i vecchi timestamp.
 - Validazione server-side, protezione delle scritture cross-site e ascolto solo su localhost per impostazione predefinita.
 - Compatibilità conservata con i database delle versioni precedenti.
-- README, guida Windows, manuale e schermate aggiornati; download Windows documentato tramite GitHub Releases con verifica SHA-256.
+- README, pagina dei requisiti, guida Windows, manuale e schermate aggiornati; download Windows documentato tramite GitHub Releases con verifica SHA-256.
 - Workflow di release predisposto per compilare l'eseguibile Windows e pubblicare il checksum soltanto da un tag coerente con `VERSION`.
 
 La versione definitiva e la data verranno assegnate soltanto dopo il collaudo finale.
