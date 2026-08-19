@@ -21,11 +21,11 @@ if getattr(sys, 'frozen', False):
 
 import uvicorn
 
-from main import app  # noqa: F401
+from main import APP_HOST, APP_PORT, APP_VERSION, app  # noqa: F401
 
-_BOX_AVVIO = """\
+_BOX_AVVIO = f"""\
 ╔══════════════════════════════════════════════╗
-║   Consigliere di Stazione v1.0               ║
+║   {f'Consigliere di Stazione v{APP_VERSION}':<43}║
 ║   di I6502TR                                 ║
 ╠══════════════════════════════════════════════╣
 ║                                              ║
@@ -34,9 +34,9 @@ _BOX_AVVIO = """\
 ╚══════════════════════════════════════════════╝
 """
 
-_BOX_PRONTO = """\
+_BOX_PRONTO = f"""\
 ╔══════════════════════════════════════════════╗
-║   Consigliere di Stazione v1.0               ║
+║   {f'Consigliere di Stazione v{APP_VERSION}':<43}║
 ║   di I6502TR                                 ║
 ╠══════════════════════════════════════════════╣
 ║                                              ║
@@ -44,7 +44,7 @@ _BOX_PRONTO = """\
 ║                                              ║
 ║   Il browser si apre automaticamente.        ║
 ║   Se non si apre, vai manualmente su:        ║
-║      http://localhost:8080                   ║
+║      http://localhost:{APP_PORT:<5}                  ║
 ║                                              ║
 ║   Premi INVIO per spegnere il programma.     ║
 ║                                              ║
@@ -53,7 +53,7 @@ _BOX_PRONTO = """\
 
 
 def _run_server() -> None:
-    uvicorn.run(app, host="127.0.0.1", port=8080, log_level="warning")
+    uvicorn.run(app, host=APP_HOST, port=APP_PORT, log_level="warning")
 
 
 if __name__ == "__main__":
@@ -65,7 +65,7 @@ if __name__ == "__main__":
     time.sleep(3)
 
     print(_BOX_PRONTO)
-    webbrowser.open("http://localhost:8080")
+    webbrowser.open(f"http://localhost:{APP_PORT}")
 
     try:
         input()

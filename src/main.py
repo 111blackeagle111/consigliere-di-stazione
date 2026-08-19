@@ -14,13 +14,33 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import csv
+import io
+import math
 import os
+import re
+import sqlite3
 import sys
+import tempfile
+import threading
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 APP_DATA_DIR = "ConsigliereDiStazione"
 DATABASE_NAME = "swl_logs.db"
+APP_HOST = os.getenv("CONSIGLIERE_HOST", "127.0.0.1")
+
+
+def get_app_port() -> int:
+    try:
+        port = int(os.getenv("CONSIGLIERE_PORT", "8080"))
+    except ValueError:
+        return 8080
+    return port if 1 <= port <= 65535 else 8080
+
+
+APP_PORT = get_app_port()
 
 
 def get_user_data_path() -> Path:
@@ -44,6 +64,17 @@ def get_base_path() -> Path:
     return Path(__file__).parent.parent
 
 
+def get_app_version() -> str:
+    version_file = get_base_path() / "VERSION"
+    try:
+        return version_file.read_text(encoding="utf-8").strip() or "dev"
+    except OSError:
+        return "dev"
+
+
+APP_VERSION = get_app_version()
+
+
 def get_data_path() -> Path:
     """Return the DB directory while preserving existing portable installations."""
     if os.getenv("CONSIGLIERE_DATA_DIR"):
@@ -57,11 +88,12 @@ def get_data_path() -> Path:
     return Path(__file__).parent.parent
 
 
-from fastapi import FastAPI, Depends, Request, Form, BackgroundTasks
+from fastapi import FastAPI, Depends, Request, Form, HTTPException
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import StreamingResponse
-from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, Text, or_
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, Text, Index, case, func, or_
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
+from starlette.background import BackgroundTask
 from datetime import datetime, timedelta, timezone
 import requests
 import json
@@ -103,10 +135,23 @@ class Settings(Base):
 
 # Crea tabelle
 Base.metadata.create_all(bind=engine)
+Index("ix_qsos_frequency_timestamp", QSO.frequency, QSO.timestamp).create(bind=engine, checkfirst=True)
+Index("ix_qsos_mode_timestamp", QSO.mode, QSO.timestamp).create(bind=engine, checkfirst=True)
 
 def get_callsign(db: Session) -> str:
     row = db.query(Settings).filter(Settings.key == "callsign").first()
     return row.value if row else "I6502TR"
+
+
+def get_operator_locator(db: Session) -> str:
+    row = db.query(Settings).filter(Settings.key == "operator_locator").first()
+    if not row or not isinstance(row.value, str):
+        return ""
+    try:
+        return normalize_locator(row.value)
+    except ValueError:
+        logger.warning("Locator operatore non valido ignorato: %r", row.value)
+        return ""
 
 def get_db():
     db = SessionLocal()
@@ -119,34 +164,183 @@ def get_db():
 # FASTAPI SETUP
 # ============================================================
 
-app = FastAPI(title="SWL-Log AI")
+app = FastAPI(title="Consigliere di Stazione", version=APP_VERSION)
 
 templates = Jinja2Templates(directory=str(get_base_path() / "templates"))
 
-LAT = 45.46
-LNG = 12.35
+
+def request_has_safe_origin(request: Request) -> bool:
+    """Reject browser cross-site writes while keeping CLI/local clients usable."""
+    if request.headers.get("sec-fetch-site", "").lower() == "cross-site":
+        return False
+    origin = request.headers.get("origin")
+    if not origin:
+        return True
+    return urlparse(origin).netloc.lower() == request.headers.get("host", "").lower()
+
+
+@app.middleware("http")
+async def protect_local_writes(request: Request, call_next):
+    if request.method not in {"GET", "HEAD", "OPTIONS"} and not request_has_safe_origin(request):
+        return JSONResponse(
+            status_code=403,
+            content={"detail": "Richiesta rifiutata: origine diversa dall'app locale"},
+        )
+    return await call_next(request)
 
 # ============================================================
 # FUNZIONI HELPER
 # ============================================================
 
+QSO_MODES = {"SSB", "CW", "FM", "AM", "FT8", "FT4", "PSK31", "RTTY", "JT65"}
+BAND_RANGES = {
+    "160m": (1.8, 2.0), "80m": (3.5, 4.0), "60m": (5.3, 5.4),
+    "40m": (7.0, 7.3), "30m": (10.1, 10.15), "20m": (14.0, 14.35),
+    "17m": (18.068, 18.168), "15m": (21.0, 21.45),
+    "12m": (24.89, 24.99), "10m": (28.0, 29.7), "6m": (50.0, 54.0),
+}
+
+
 def get_band(freq_mhz: float) -> str:
     if freq_mhz == 0.0:
         return "PROP"
-    if freq_mhz > 1000:
-        freq_mhz = freq_mhz / 1000
-    
-    bands = [
-        (1.8, 2.0, "160m"), (3.5, 4.0, "80m"), (5.3, 5.4, "60m"),
-        (7.0, 7.3, "40m"), (10.1, 10.15, "30m"), (14.0, 14.35, "20m"),
-        (18.068, 18.168, "17m"), (21.0, 21.45, "15m"), 
-        (24.89, 24.99, "12m"), (28.0, 29.7, "10m"), (50.0, 54.0, "6m")
-    ]
-    
-    for min_f, max_f, name in bands:
+    for name, (min_f, max_f) in BAND_RANGES.items():
         if min_f <= freq_mhz <= max_f:
             return name
     return f"{freq_mhz:.3f}MHz"
+
+
+def get_qso_statistics(db: Session) -> tuple[int, dict, dict]:
+    """Aggregate the complete manual log in SQLite without loading every QSO."""
+    band_case = case(
+        *[
+            (QSO.frequency.between(minimum, maximum), name)
+            for name, (minimum, maximum) in BAND_RANGES.items()
+        ],
+        else_="Altra",
+    )
+    base_filter = QSO.frequency > 0
+    total = db.query(func.count(QSO.id)).filter(base_filter).scalar() or 0
+    bands = {
+        name: count
+        for name, count in db.query(band_case, func.count(QSO.id))
+        .filter(base_filter)
+        .group_by(band_case)
+        .all()
+    }
+    modes = {
+        mode: count
+        for mode, count in db.query(QSO.mode, func.count(QSO.id))
+        .filter(base_filter)
+        .group_by(QSO.mode)
+        .all()
+    }
+    return total, bands, modes
+
+
+MAIDENHEAD_PATTERN = re.compile(r"^[A-R]{2}[0-9]{2}(?:[A-X]{2})?$")
+
+
+def normalize_locator(locator: str) -> str:
+    """Normalize and validate a 4- or 6-character Maidenhead locator."""
+    normalized = locator.strip().upper()
+    if normalized and not MAIDENHEAD_PATTERN.fullmatch(normalized):
+        raise ValueError("Locator non valido: usa 4 o 6 caratteri, per esempio JN65 o JN65ER")
+    return normalized
+
+
+CALLSIGN_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9/.-]{0,19}$")
+
+
+def validate_qso_fields(
+    frequency: float,
+    mode: str,
+    call_sign: str,
+    rst_received: str = "",
+    locator: str = "",
+    notes: str = "",
+) -> dict:
+    if not math.isfinite(frequency) or not 0.001 <= frequency <= 300000:
+        raise ValueError("Frequenza non valida: inserisci un valore in MHz tra 0.001 e 300000")
+    normalized_mode = mode.strip().upper()
+    if normalized_mode not in QSO_MODES:
+        raise ValueError("Modo non valido")
+    normalized_call = call_sign.strip().upper()
+    if not CALLSIGN_PATTERN.fullmatch(normalized_call):
+        raise ValueError("Nominativo non valido: massimo 20 caratteri, lettere, numeri, /, . o -")
+    normalized_rst = rst_received.strip().upper()
+    if len(normalized_rst) > 10:
+        raise ValueError("RST troppo lungo: massimo 10 caratteri")
+    normalized_locator = normalize_locator(locator)
+    normalized_notes = notes.strip()
+    if len(normalized_notes) > 5000:
+        raise ValueError("Note troppo lunghe: massimo 5000 caratteri")
+    return {
+        "frequency": float(frequency),
+        "mode": normalized_mode,
+        "call_sign": normalized_call,
+        "rst_received": normalized_rst,
+        "locator": normalized_locator,
+        "notes": normalized_notes,
+    }
+
+
+def maidenhead_to_coordinates(locator: str) -> tuple[float, float]:
+    """Return the center latitude/longitude of a Maidenhead grid square."""
+    locator = normalize_locator(locator)
+    if not locator:
+        raise ValueError("Locator mancante")
+
+    longitude = (ord(locator[0]) - ord("A")) * 20 - 180
+    latitude = (ord(locator[1]) - ord("A")) * 10 - 90
+    longitude += int(locator[2]) * 2
+    latitude += int(locator[3])
+
+    if len(locator) == 6:
+        longitude += (ord(locator[4]) - ord("A")) * (5 / 60) + (2.5 / 60)
+        latitude += (ord(locator[5]) - ord("A")) * (2.5 / 60) + (1.25 / 60)
+    else:
+        longitude += 1
+        latitude += 0.5
+
+    return latitude, longitude
+
+
+def distance_and_bearing(
+    origin: tuple[float, float], destination: tuple[float, float]
+) -> tuple[float, float]:
+    """Calculate great-circle distance in km and initial bearing in degrees."""
+    lat1, lon1 = (math.radians(value) for value in origin)
+    lat2, lon2 = (math.radians(value) for value in destination)
+    delta_lat = lat2 - lat1
+    delta_lon = lon2 - lon1
+
+    haversine = (
+        math.sin(delta_lat / 2) ** 2
+        + math.cos(lat1) * math.cos(lat2) * math.sin(delta_lon / 2) ** 2
+    )
+    haversine = min(1.0, max(0.0, haversine))
+    distance = 6371.0088 * 2 * math.atan2(math.sqrt(haversine), math.sqrt(1 - haversine))
+    x = math.sin(delta_lon) * math.cos(lat2)
+    y = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(delta_lon)
+    bearing = (math.degrees(math.atan2(x, y)) + 360) % 360
+    return distance, bearing
+
+
+def compass_direction(bearing: float) -> str:
+    directions = ("N", "NE", "E", "SE", "S", "SO", "O", "NO")
+    return directions[int((bearing + 22.5) // 45) % 8]
+
+
+def nearest_spots_summary(pota_data: dict, limit: int = 3) -> str:
+    parts = []
+    for spot in pota_data.get("nearest_spots", [])[:limit]:
+        parts.append(
+            f"{spot.get('call', '???')} su {spot.get('band', '?')} a "
+            f"{spot.get('distance_km', '?')} km verso {spot.get('direction', '?')} "
+            f"(locator {spot.get('grid', '?')})"
+        )
+    return "; ".join(parts)
 
 SWLBOT_RAG_URL = os.getenv("SWLBOT_RAG_URL", "http://127.0.0.1:8081/api/advice")
 SWLBOT_RAG_TIMEOUT = float(os.getenv("SWLBOT_RAG_TIMEOUT", "90"))
@@ -262,11 +456,42 @@ class SolarThresholds:
     SFI_GOOD = 100
     SFI_FAIR = 70
 
+
+class TimedCache:
+    def __init__(self, ttl_seconds: int):
+        self.ttl_seconds = ttl_seconds
+        self._value = None
+        self._stored_at = 0.0
+        self._lock = threading.Lock()
+
+    def get(self, allow_stale: bool = False):
+        with self._lock:
+            if self._value is None:
+                return None
+            age = max(0.0, time.monotonic() - self._stored_at)
+            if not allow_stale and age >= self.ttl_seconds:
+                return None
+            return self._value, age
+
+    def set(self, value) -> None:
+        with self._lock:
+            self._value = value
+            self._stored_at = time.monotonic()
+
+    def clear(self) -> None:
+        with self._lock:
+            self._value = None
+            self._stored_at = 0.0
+
+
+solar_data_cache = TimedCache(60)
+pota_data_cache = TimedCache(30)
+
 # ============================================================
 # DATI NOAA (ROBUSTO CON RETRY)
 # ============================================================
 
-def get_solar_data():
+def _fetch_solar_data():
     try:
         url_k = "https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json"
         logger.info("Fetching NOAA K-index...")
@@ -324,28 +549,74 @@ def get_solar_data():
         logger.error(f"NOAA Error type={type(e).__name__} args={e.args}: {e}")
         return {"status": "error", "error": str(e), "k_index": "N/A", "sfi": "N/A", "k_float": None, "sfi_float": None}
 
+
+def get_solar_data(force_refresh: bool = False):
+    cached = None if force_refresh else solar_data_cache.get()
+    if cached:
+        value, age = cached
+        return {**value, "cached": True, "cache_age_seconds": round(age, 1), "stale": False}
+
+    result = _fetch_solar_data()
+    if result.get("status") == "ok":
+        solar_data_cache.set(result)
+        return {**result, "cached": False, "cache_age_seconds": 0.0, "stale": False}
+
+    stale = solar_data_cache.get(allow_stale=True)
+    if stale:
+        value, age = stale
+        return {
+            **value,
+            "cached": True,
+            "cache_age_seconds": round(age, 1),
+            "stale": True,
+            "warning": result.get("error", "Aggiornamento NOAA non disponibile"),
+        }
+    return result
+
 # ============================================================
 # POTA DATA
 # ============================================================
 
-def get_pota_spots(band="20m", mode="ALL", limit=50):
+def get_pota_payload(force_refresh: bool = False) -> tuple[list, dict]:
+    cached = None if force_refresh else pota_data_cache.get()
+    if cached:
+        value, age = cached
+        return value, {"cached": True, "cache_age_seconds": round(age, 1), "stale": False}
+
     try:
-        url = "https://api.pota.app/spot/activator"
-        response = requests.get(url, timeout=15)
+        response = requests.get("https://api.pota.app/spot/activator", timeout=15)
+        response.raise_for_status()
+        value = response.json()
+        if not isinstance(value, list):
+            raise ValueError("Risposta POTA non valida")
+        pota_data_cache.set(value)
+        return value, {"cached": False, "cache_age_seconds": 0.0, "stale": False}
+    except (requests.RequestException, ValueError, TypeError) as exc:
+        stale = pota_data_cache.get(allow_stale=True)
+        if stale:
+            value, age = stale
+            return value, {
+                "cached": True,
+                "cache_age_seconds": round(age, 1),
+                "stale": True,
+                "warning": str(exc),
+            }
+        raise
+
+
+def get_pota_spots(
+    band="20m", mode="ALL", limit=50, operator_locator="", force_refresh=False
+):
+    try:
+        all_spots, cache_info = get_pota_payload(force_refresh=force_refresh)
         
-        if response.status_code != 200:
-            return {"error": f"HTTP {response.status_code}", "spots": [], "count": 0, "by_band": {}}
-        
-        all_spots = response.json()
-        band_ranges = {
-            "160m": (1.8, 2.0), "80m": (3.5, 4.0), "60m": (5.3, 5.4),
-            "40m": (7.0, 7.3), "30m": (10.1, 10.15), "20m": (14.0, 14.35),
-            "17m": (18.068, 18.168), "15m": (21.0, 21.45), 
-            "12m": (24.89, 24.99), "10m": (28.0, 29.7), "6m": (50.0, 54.0)
-        }
-        
+        normalized_locator = normalize_locator(operator_locator) if operator_locator else ""
+        operator_coordinates = (
+            maidenhead_to_coordinates(normalized_locator) if normalized_locator else None
+        )
         band_counts = {}
         filtered = []
+        located_spots = []
         
         for spot in all_spots:
             try:
@@ -355,44 +626,70 @@ def get_pota_spots(band="20m", mode="ALL", limit=50):
                     freq = freq / 1000
                 
                 spot_band = None
-                for b_name, (min_f, max_f) in band_ranges.items():
+                for b_name, (min_f, max_f) in BAND_RANGES.items():
                     if min_f <= freq <= max_f:
                         spot_band = b_name
                         band_counts[b_name] = band_counts.get(b_name, 0) + 1
                         break
-                
-                if band != "ALL":
-                    search_band = band.lower()
-                    if spot_band == search_band:
-                        spot_mode = str(spot.get("mode", "")).upper()
-                        if mode == "ALL" or spot_mode == mode.upper():
-                            filtered.append({
-                                "call": spot.get("activator", "???"),
-                                "freq": f"{freq:.3f}",
-                                "mode": spot_mode or "??",
-                                "band": spot_band,
-                                "park": spot.get("name", "Unknown")[:30],
-                                "grid": spot.get("grid4", ""),
-                                "time": spot.get("spotTime", "")[11:16] if spot.get("spotTime") else "??"
-                            })
-            except:
+
+                if not spot_band:
+                    continue
+
+                spot_mode = str(spot.get("mode", "")).upper()
+                grid = str(spot.get("grid6") or spot.get("grid4") or "").strip().upper()
+                item = {
+                    "call": str(spot.get("activator") or "???"),
+                    "freq": f"{freq:.3f}",
+                    "mode": spot_mode or "??",
+                    "band": spot_band,
+                    "park": str(spot.get("name") or "Unknown")[:60],
+                    "grid": grid,
+                    "time": str(spot.get("spotTime"))[11:16] if spot.get("spotTime") else "??",
+                }
+
+                if operator_coordinates and grid:
+                    try:
+                        destination = maidenhead_to_coordinates(grid)
+                        distance, bearing = distance_and_bearing(operator_coordinates, destination)
+                        item.update({
+                            "distance_km": round(distance),
+                            "bearing_deg": round(bearing) % 360,
+                            "direction": compass_direction(bearing),
+                        })
+                        located_spots.append(item.copy())
+                    except ValueError:
+                        pass
+
+                if band != "ALL" and spot_band == band.lower():
+                    if mode == "ALL" or spot_mode == mode.upper():
+                        filtered.append(item)
+            except (AttributeError, TypeError, ValueError, IndexError):
                 continue
-            
-            if band != "ALL" and len(filtered) >= limit:
-                break
-        
+
+        nearest_spots = sorted(
+            located_spots, key=lambda item: item["distance_km"]
+        )[:5]
+        visible_spots = filtered[:limit] if band != "ALL" and limit > 0 else []
+
         return {
-            "spots": filtered[:limit] if band != "ALL" else [],
+            "spots": visible_spots,
             "count": len(filtered) if band != "ALL" else sum(band_counts.values()),
             "by_band": band_counts,
             "total_spots": len(all_spots),
             "band": band,
-            "mode": mode
+            "mode": mode,
+            "operator_locator": normalized_locator,
+            "located_count": len(located_spots),
+            "nearest_spots": nearest_spots,
+            **cache_info,
         }
         
     except Exception as e:
         logger.error(f"Errore POTA: {e}")
-        return {"error": str(e), "spots": [], "count": 0, "by_band": {}}
+        return {
+            "error": str(e), "spots": [], "count": 0, "by_band": {},
+            "nearest_spots": [], "located_count": 0,
+        }
 
 # ============================================================
 # EVALUATION & AI
@@ -471,7 +768,12 @@ def generate_smart_alert(eval_data: dict, solar_data: dict, pota_data: dict) -> 
         "e 280 caratteri. Non indicare frequenze o stazioni specifiche che non compaiono "
         "nei dati correnti."
     )
+    geo_summary = nearest_spots_summary(pota_data, limit=2)
     fallback_parts = eval_data["opportunities"] + eval_data["details"] + eval_data["warnings"]
+    if geo_summary:
+        fallback_parts = fallback_parts[:2] + [
+            f"Dal QTH {pota_data.get('operator_locator')}: {geo_summary}."
+        ]
     rule_guidance = " ".join(fallback_parts[:3]) or f"Condizioni {level}: score {score}/100."
     rule_guidance = rule_guidance[:280]
     current_data = f"""
@@ -480,6 +782,8 @@ def generate_smart_alert(eval_data: dict, solar_data: dict, pota_data: dict) -> 
 - SFI: {eval_data['solar']['sfi']}
 - Attività POTA: {eval_data['total_activity']} spot
 - Bande top: {[b[0] for b in eval_data['top_bands'][:2]]}
+- QTH operatore: {pota_data.get('operator_locator') or 'Non impostato'}
+- Spot POTA localizzati più vicini: {geo_summary or 'Non disponibili'}
 - Opportunità: {', '.join(eval_data['opportunities']) if eval_data['opportunities'] else 'Nessuna'}
 - Avvertenze: {', '.join(eval_data['warnings']) if eval_data['warnings'] else 'Nessuna'}
 - Ora: {periodo}
@@ -509,12 +813,7 @@ VALUTAZIONE DETERMINISTICA DELL'APP (non contraddire):
 @app.get("/")
 def dashboard(request: Request, db: Session = Depends(get_db)):
     logs = db.query(QSO).filter(QSO.frequency > 0).order_by(QSO.timestamp.desc()).limit(10).all()
-    total = db.query(QSO).filter(QSO.frequency > 0).count()
-    
-    bands = {}
-    for log in db.query(QSO).filter(QSO.frequency > 0).all():
-        band = get_band(log.frequency)
-        bands[band] = bands.get(band, 0) + 1
+    total, bands, _ = get_qso_statistics(db)
     
     solar_logs = db.query(QSO).filter(QSO.mode == "PROP").order_by(QSO.timestamp.desc()).first()
     latest_alert = db.query(QSO).filter(QSO.mode == "ALERT").order_by(QSO.timestamp.desc()).first()
@@ -526,6 +825,7 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
         "solar_data": solar_logs.notes if solar_logs else "Non aggiornato",
         "latest_alert": latest_alert.notes if latest_alert else None,
         "callsign": get_callsign(db),
+        "operator_locator": get_operator_locator(db),
     })
 
 
@@ -543,14 +843,8 @@ def qso_history(
     limit = min(100, max(10, limit))
     query = db.query(QSO).filter(QSO.frequency > 0)
 
-    band_ranges = {
-        "160m": (1.8, 2.0), "80m": (3.5, 4.0), "60m": (5.3, 5.4),
-        "40m": (7.0, 7.3), "30m": (10.1, 10.15), "20m": (14.0, 14.35),
-        "17m": (18.068, 18.168), "15m": (21.0, 21.45),
-        "12m": (24.89, 24.99), "10m": (28.0, 29.7), "6m": (50.0, 54.0),
-    }
-    if band in band_ranges:
-        minimum, maximum = band_ranges[band]
+    if band in BAND_RANGES:
+        minimum, maximum = BAND_RANGES[band]
         query = query.filter(QSO.frequency >= minimum, QSO.frequency <= maximum)
     if mode:
         query = query.filter(QSO.mode == mode.upper())
@@ -584,24 +878,176 @@ def qso_history(
         ],
     }
 
+
+def local_timestamp_to_utc(value: Optional[datetime]) -> Optional[datetime]:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.astimezone(timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def csv_rows(db: Session):
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "id", "timestamp_locale", "timestamp_utc", "frequenza_mhz", "banda",
+        "modo", "nominativo", "rst_ricevuto", "locator", "note",
+    ])
+    yield "\ufeff" + output.getvalue()
+    for qso in (
+        db.query(QSO)
+        .filter(QSO.frequency > 0)
+        .order_by(QSO.timestamp.asc())
+        .yield_per(500)
+    ):
+        output.seek(0)
+        output.truncate(0)
+        utc_value = local_timestamp_to_utc(qso.timestamp)
+        writer.writerow([
+            qso.id,
+            qso.timestamp.isoformat() if qso.timestamp else "",
+            utc_value.isoformat().replace("+00:00", "Z") if utc_value else "",
+            f"{qso.frequency:.6f}".rstrip("0").rstrip("."),
+            get_band(qso.frequency),
+            qso.mode,
+            qso.call_sign,
+            qso.rst_received,
+            qso.locator,
+            qso.notes,
+        ])
+        yield output.getvalue()
+
+
+def adif_field(name: str, value) -> str:
+    text = "" if value is None else str(value)
+    return f"<{name}:{len(text)}>{text}" if text else ""
+
+
+def adif_rows(db: Session):
+    yield (
+        "Generated by Consigliere di Stazione\r\n"
+        f"<ADIF_VER:5>3.1.4{adif_field('PROGRAMID', 'Consigliere di Stazione')}<EOH>\r\n"
+    )
+    for qso in (
+        db.query(QSO)
+        .filter(QSO.frequency > 0)
+        .order_by(QSO.timestamp.asc())
+        .yield_per(500)
+    ):
+        utc_value = local_timestamp_to_utc(qso.timestamp)
+        fields = [
+            adif_field("CALL", qso.call_sign),
+            adif_field("QSO_DATE", utc_value.strftime("%Y%m%d") if utc_value else ""),
+            adif_field("TIME_ON", utc_value.strftime("%H%M%S") if utc_value else ""),
+            adif_field("BAND", get_band(qso.frequency) if get_band(qso.frequency) in BAND_RANGES else ""),
+            adif_field("MODE", qso.mode),
+            adif_field("FREQ", f"{qso.frequency:.6f}".rstrip("0").rstrip(".")),
+            adif_field("RST_RCVD", qso.rst_received),
+            adif_field("GRIDSQUARE", qso.locator),
+            adif_field("COMMENT", qso.notes),
+        ]
+        yield "".join(field for field in fields if field) + "<EOR>\r\n"
+
+
+@app.get("/export/qso.csv")
+def export_qso_csv(db: Session = Depends(get_db)):
+    filename = f"consigliere-qso-{datetime.now().strftime('%Y%m%d-%H%M%S')}.csv"
+    return StreamingResponse(
+        csv_rows(db),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get("/export/qso.adi")
+def export_qso_adif(db: Session = Depends(get_db)):
+    filename = f"consigliere-qso-{datetime.now().strftime('%Y%m%d-%H%M%S')}.adi"
+    return StreamingResponse(
+        adif_rows(db),
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def create_database_backup() -> Path:
+    file_descriptor, backup_name = tempfile.mkstemp(
+        prefix="consigliere-backup-", suffix=".db"
+    )
+    os.close(file_descriptor)
+    backup_path = Path(backup_name)
+    try:
+        with sqlite3.connect(_db_path) as source, sqlite3.connect(backup_path) as destination:
+            source.backup(destination)
+        return backup_path
+    except Exception:
+        backup_path.unlink(missing_ok=True)
+        raise
+
+
+@app.get("/backup/database")
+def download_database_backup():
+    backup_path = create_database_backup()
+    filename = f"swl_logs-backup-{datetime.now().strftime('%Y%m%d-%H%M%S')}.db"
+    return FileResponse(
+        backup_path,
+        filename=filename,
+        media_type="application/vnd.sqlite3",
+        background=BackgroundTask(backup_path.unlink, missing_ok=True),
+    )
+
 @app.post("/add")
 def add_qso(frequency: float = Form(...), mode: str = Form(...), 
             call_sign: str = Form(...), rst_received: str = Form(""),
             locator: str = Form(""), notes: str = Form(""),
             db: Session = Depends(get_db)):
-    
-    qso = QSO(
-        frequency=float(frequency),
-        mode=mode.upper(),
-        call_sign=call_sign.upper(),
-        rst_received=rst_received,
-        locator=locator.upper() if locator else "",
-        notes=notes,
-        timestamp=datetime.now()
-    )
+    try:
+        values = validate_qso_fields(
+            frequency, mode, call_sign, rst_received, locator, notes
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    qso = QSO(**values, timestamp=datetime.now())
     db.add(qso)
     db.commit()
-    return {"status": "ok", "id": qso.id, "band": get_band(float(frequency))}
+    return {"status": "ok", "id": qso.id, "band": get_band(values["frequency"])}
+
+
+@app.post("/qso/{qso_id}/edit")
+def edit_qso(
+    qso_id: int,
+    frequency: float = Form(...),
+    mode: str = Form(...),
+    call_sign: str = Form(...),
+    rst_received: str = Form(""),
+    locator: str = Form(""),
+    notes: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    qso = db.query(QSO).filter(QSO.id == qso_id, QSO.frequency > 0).first()
+    if not qso:
+        raise HTTPException(status_code=404, detail="QSO non trovato")
+    try:
+        values = validate_qso_fields(
+            frequency, mode, call_sign, rst_received, locator, notes
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    for field, value in values.items():
+        setattr(qso, field, value)
+    db.commit()
+    return {"status": "ok", "id": qso.id, "band": get_band(qso.frequency)}
+
+
+@app.post("/qso/{qso_id}/delete")
+def delete_qso(qso_id: int, db: Session = Depends(get_db)):
+    qso = db.query(QSO).filter(QSO.id == qso_id, QSO.frequency > 0).first()
+    if not qso:
+        raise HTTPException(status_code=404, detail="QSO non trovato")
+    db.delete(qso)
+    db.commit()
+    return {"status": "ok", "id": qso_id}
 
 @app.get("/fetch/solar")
 def fetch_solar(db: Session = Depends(get_db)):
@@ -626,22 +1072,43 @@ def fetch_solar(db: Session = Depends(get_db)):
     except:
         note += "Dati aggiornati"
     
-    prop_qso = QSO(
-        frequency=0.0,
-        mode="PROP",
-        call_sign="NOAA_DATA",
-        rst_received=str(solar.get('k_index', '')),
-        notes=note,
-        timestamp=datetime.now()
+    latest_prop = (
+        db.query(QSO)
+        .filter(QSO.mode == "PROP", QSO.call_sign == "NOAA_DATA")
+        .order_by(QSO.timestamp.desc())
+        .first()
     )
-    db.add(prop_qso)
-    db.commit()
+    saved = not (
+        solar.get("cached")
+        and latest_prop
+        and latest_prop.notes == note
+        and latest_prop.timestamp
+        and datetime.now() - latest_prop.timestamp < timedelta(minutes=5)
+    )
+    if saved:
+        db.add(QSO(
+            frequency=0.0,
+            mode="PROP",
+            call_sign="NOAA_DATA",
+            rst_received=str(solar.get('k_index', '')),
+            notes=note,
+            timestamp=datetime.now(),
+        ))
+        db.commit()
     
-    return {"status": "ok", "data": solar, "note": note, "interpretation": interpretation}
+    return {
+        "status": "ok", "data": solar, "note": note,
+        "interpretation": interpretation, "saved": saved,
+    }
 
 @app.get("/fetch/dxspots")
 def fetch_dxspots(band: str = "20m", mode: str = "ALL", db: Session = Depends(get_db)):
-    result = get_pota_spots(band=band, mode=mode, limit=10)
+    result = get_pota_spots(
+        band=band,
+        mode=mode,
+        limit=10,
+        operator_locator=get_operator_locator(db),
+    )
     
     return {
         "status": "ok" if "error" not in result else "error",
@@ -650,6 +1117,12 @@ def fetch_dxspots(band: str = "20m", mode: str = "ALL", db: Session = Depends(ge
         "spots_found": result.get("count", 0),
         "spots": result.get("spots", []),
         "activity_by_band": result.get("by_band", {}),
+        "operator_locator": result.get("operator_locator", ""),
+        "located_count": result.get("located_count", 0),
+        "cached": result.get("cached", False),
+        "cache_age_seconds": result.get("cache_age_seconds", 0),
+        "stale": result.get("stale", False),
+        "warning": result.get("warning"),
         "source": "POTA.app",
         "timestamp": datetime.now().isoformat()
     }
@@ -660,7 +1133,9 @@ def check_alert_auto(db: Session = Depends(get_db), force: bool = False):
     if solar.get("status") != "ok":
         return {"status": "error", "message": "Dati solar non disponibili", "error_detail": solar.get("error")}
     
-    pota = get_pota_spots(band="ALL", limit=0)
+    pota = get_pota_spots(
+        band="ALL", limit=0, operator_locator=get_operator_locator(db)
+    )
     evaluation = evaluate_conditions(solar, pota)
     
     if evaluation["score"] < 40 and not force:
@@ -696,9 +1171,11 @@ def check_alert_auto(db: Session = Depends(get_db), force: bool = False):
     return {"status": "alert_generated", "alert": alert, "evaluation": evaluation}
 
 @app.get("/alert/status")
-def alert_status():
+def alert_status(db: Session = Depends(get_db)):
     solar = get_solar_data()
-    pota = get_pota_spots(band="ALL", limit=0)
+    pota = get_pota_spots(
+        band="ALL", limit=0, operator_locator=get_operator_locator(db)
+    )
     evaluation = evaluate_conditions(solar, pota)
     
     return {
@@ -774,7 +1251,7 @@ async def alert_stream():
 @app.get("/debug/noaa-test")
 def test_noaa_connection():
     start = time.time()
-    result = get_solar_data()
+    result = get_solar_data(force_refresh=True)
     elapsed = round(time.time() - start, 2)
     
     return {
@@ -801,7 +1278,7 @@ def debug_pota_raw(limit: int = 3):
             "status": "ok",
             "total_spots": len(data),
             "sample_structure": sample,
-            "hint": "Controlla campi: frequency/freq, mode, activator, name"
+            "hint": "Controlla campi: frequency/freq, mode, activator, name, grid4/grid6"
         }
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -833,49 +1310,51 @@ def generate_rule_based_advice(solar: dict, pota: dict, bands: dict, modes: dict
     selected_band = pota.get("band")
     by_band = pota.get("by_band", {})
     top_bands = sorted(by_band.items(), key=lambda x: x[1], reverse=True)[:2]
+    pota_advice = ""
     if pota_count > 0 and selected_band and selected_band != "ALL":
-        consigli.append(
+        pota_advice = (
             f"Sono presenti {pota_count} spot POTA correnti su {selected_band}: "
             "questa è attività osservata, non una misura della qualità di propagazione o ricezione."
         )
     elif top_bands:
         band_str = " e ".join(f"{b[0]} ({b[1]} spot)" for b in top_bands)
-        consigli.append(f"Gli spot POTA correnti risultano più numerosi su {band_str}; usare questi conteggi come indicazione di attività, non di propagazione garantita.")
+        pota_advice = f"Gli spot POTA correnti risultano più numerosi su {band_str}; usare questi conteggi come indicazione di attività, non di propagazione garantita."
     elif pota_count == 0 and ora >= 22:
-        consigli.append(f"Ora di {periodo}: nessuno spot POTA trovato nel filtro corrente; il dato non permette di dedurre l'attività sulle altre bande.")
+        pota_advice = f"Ora di {periodo}: nessuno spot POTA trovato nel filtro corrente; il dato non permette di dedurre l'attività sulle altre bande."
+
+    geo_summary = nearest_spots_summary(pota, limit=2)
+    if geo_summary:
+        geographic_advice = (
+            f"Dal QTH {pota.get('operator_locator')}, tra gli spot dotati di locator i più vicini sono: "
+            f"{geo_summary}. Distanze e direzioni sono calcolate dai locator, non stimate dall'IA."
+        )
+        pota_advice = f"{pota_advice} {geographic_advice}".strip()
+    if pota_advice:
+        consigli.append(pota_advice)
 
     if bands:
         banda_preferita = max(bands, key=bands.get)
         consigli.append(f"Nel tuo storico la banda più registrata è {banda_preferita} ({bands[banda_preferita]} QSO); questo descrive le tue abitudini, non l'attività POTA corrente.")
 
-    return "\n".join(f"• {c}" for c in consigli[:3]) if consigli else "Dati insufficienti per generare consigli."
+    return "\n".join(f"• {c}" for c in consigli[:4]) if consigli else "Dati insufficienti per generare consigli."
 
 
 @app.get("/ai/analyze")
 def ai_analyze(db: Session = Depends(get_db)):
-    logs = (
-        db.query(QSO)
-        .filter(QSO.frequency > 0)
-        .order_by(QSO.timestamp.desc())
-        .all()
-    )
-
-    modes = {}
-    bands = {}
-    for log in logs:
-        modes[log.mode] = modes.get(log.mode, 0) + 1
-        band = get_band(log.frequency)
-        bands[band] = bands.get(band, 0) + 1
+    total_qsos, bands, modes = get_qso_statistics(db)
 
     solar = get_solar_data()
     # Una sola lettura dell'endpoint POTA contiene gli spot di tutte le frequenze.
     # Li raggruppiamo per banda per dare al consiglio una vista completa, senza
     # ripetere la stessa chiamata HTTP una volta per ogni banda.
-    pota = get_pota_spots("ALL", "ALL", 0)
+    operator_locator = get_operator_locator(db)
+    pota = get_pota_spots("ALL", "ALL", 0, operator_locator=operator_locator)
     pota_by_band = pota.get("by_band", {})
     pota_top_bands = sorted(pota_by_band.items(), key=lambda item: item[1], reverse=True)[:5]
+    pota_nearest = pota.get("nearest_spots", [])
 
-    ora = datetime.now(timezone.utc).hour
+    local_now = datetime.now().astimezone()
+    ora = local_now.hour
     periodo = "mattina" if 6 <= ora < 12 else "pomeriggio" if 12 <= ora < 18 else "sera" if 18 <= ora < 22 else "notte"
     rule_guidance = generate_rule_based_advice(solar, pota, bands, modes, ora)
 
@@ -886,9 +1365,10 @@ def ai_analyze(db: Session = Depends(get_db)):
     )
     current_data = f"""
 STATISTICHE OPERATORE:
+- QTH locator: {operator_locator or 'Non impostato'}
 - Bande più usate: {bands}
 - Modi preferiti: {modes}
-- QSO totali nello storico: {len(logs)}
+- QSO totali nello storico: {total_qsos}
 
 CONDIZIONI SOLAR (NOAA):
 - K-index: {solar.get('k_index', 'N/A')}
@@ -898,8 +1378,10 @@ ATTIVITA' POTA CORRENTE (tutte le bande):
 - Spot totali con banda riconosciuta: {pota.get('count', 0)}
 - Conteggi reali per banda: {pota_by_band}
 - Bande con più spot: {pota_top_bands}
+- Spot con locator utilizzabile: {pota.get('located_count', 0)}
+- Spot localizzati più vicini al QTH: {pota_nearest}
 
-ORARIO: {periodo} (UTC)
+ORARIO: {periodo} (locale, UTC{local_now.strftime('%z')[:3]}:{local_now.strftime('%z')[3:]})
 
 VALUTAZIONE DETERMINISTICA DELL'APP (non contraddire):
 {rule_guidance}
@@ -919,14 +1401,57 @@ def read_callsign(db: Session = Depends(get_db)):
 
 @app.post("/settings/callsign")
 def save_callsign(callsign: str = Form(...), db: Session = Depends(get_db)):
+    normalized = callsign.strip().upper()
+    if not CALLSIGN_PATTERN.fullmatch(normalized):
+        raise HTTPException(
+            status_code=400,
+            detail="Nominativo non valido: massimo 20 caratteri, lettere, numeri, /, . o -",
+        )
     row = db.query(Settings).filter(Settings.key == "callsign").first()
     if row:
-        row.value = callsign.upper()
+        row.value = normalized
     else:
-        db.add(Settings(key="callsign", value=callsign.upper()))
+        db.add(Settings(key="callsign", value=normalized))
     db.commit()
-    return {"callsign": callsign.upper()}
+    return {"callsign": normalized}
+
+
+@app.get("/settings/locator")
+def read_operator_locator(db: Session = Depends(get_db)):
+    locator = get_operator_locator(db)
+    if not locator:
+        return {"locator": "", "latitude": None, "longitude": None}
+    latitude, longitude = maidenhead_to_coordinates(locator)
+    return {
+        "locator": locator,
+        "latitude": round(latitude, 5),
+        "longitude": round(longitude, 5),
+    }
+
+
+@app.post("/settings/locator")
+def save_operator_locator(locator: str = Form(""), db: Session = Depends(get_db)):
+    try:
+        normalized = normalize_locator(locator)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    row = db.query(Settings).filter(Settings.key == "operator_locator").first()
+    if row:
+        row.value = normalized
+    else:
+        db.add(Settings(key="operator_locator", value=normalized))
+    db.commit()
+
+    if not normalized:
+        return {"locator": "", "latitude": None, "longitude": None}
+    latitude, longitude = maidenhead_to_coordinates(normalized)
+    return {
+        "locator": normalized,
+        "latitude": round(latitude, 5),
+        "longitude": round(longitude, 5),
+    }
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8080)
+    uvicorn.run(app, host=APP_HOST, port=APP_PORT)

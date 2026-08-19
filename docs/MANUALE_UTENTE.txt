@@ -1,310 +1,388 @@
 ================================================================================
                        MANUALE UTENTE
                      Consigliere di Stazione
-                         Versione 1.0
+                       Versione 1.1-dev
                           di I6502TR
 ================================================================================
 
 INDICE
 ------
 1. Prima di iniziare
-2. Personalizza il tuo nominativo e la posizione (IMPORTANTE)
-3. Accensione e collegamento
-4. Il pannello di controllo
-5. Registrare un ascolto (QSO)
-6. Controllare la propagazione
-7. Consultare il Consigliere
-8. Cosa fare se... (risoluzione problemi)
-9. Appendice per tecnici
+2. Nominativo operatore e QTH
+3. Installazione e avvio
+4. Pannello di controllo
+5. Registrare e consultare i QSO
+6. Dati NOAA e stazioni POTA
+7. I due controlli: alert e consiglio
+8. RAG, Qwen e regole locali
+9. Database, backup e risoluzione problemi
+10. Appendice tecnica
 
 
 ================================================================================
 1. PRIMA DI INIZIARE
 ================================================================================
 
-Cosa serve:
-- Un computer (PC Windows, Mac o Linux) collegato alla rete internet
-- Il programma "Consigliere di Stazione" già installato
-- Un browser qualsiasi (Chrome, Firefox, Edge, Safari)
+Il programma può essere usato come registro locale anche senza Internet.
+La connessione è necessaria soltanto per leggere i dati pubblici NOAA e POTA.
 
-Nota importante: I tuoi dati restano nel computer. Non serve registrarsi 
-a siti internet né inserire password. Il quaderno di bordo è tuo e resta 
-nello shack.
+Non servono account e i QSO restano nel database SQLite sul computer. Le
+richieste a NOAA e POTA non contengono il registro dell'utente. Quando si usa
+l'integrazione AI, l'inferenza avviene su servizi locali raggiunti tramite
+localhost.
 
-Dove si mettono i file:
-Su Windows il programma crea il registro in:
-%LOCALAPPDATA%\ConsigliereDiStazione\swl_logs.db
+Windows:
+- l'eseguibile contiene l'applicazione e non richiede Python;
+- Ollama, Qwen e swlbot RAG non sono inclusi.
 
-Su Linux usa:
-~/.local/share/consigliere-di-stazione/swl_logs.db
-
-Se trova un registro creato da una vecchia versione accanto all'eseguibile,
-continua a usarlo. Per fare un backup basta copiare "swl_logs.db" su una
-chiavetta USB.
+Linux/Raspberry Pi:
+- servono Python 3, un ambiente virtuale e le dipendenze del progetto;
+- Ollama e swlbot RAG sono facoltativi e servono soltanto per i testi generati
+  dal modello linguistico.
 
 
 ================================================================================
-2. PERSONALIZZA IL TUO NOMINATIVO E LA POSIZIONE (IMPORTANTE)
+2. NOMINATIVO OPERATORE E QTH
 ================================================================================
 
-Il programma viene consegnato con due impostazioni di esempio da cambiare:
+Il nominativo predefinito è I6502TR. Per cambiarlo:
 
-1. Il nominativo operatore (impostato su "I6502TR", che è il mio)
-2. Le coordinate geografiche (impostate su Trieste/Venezia)
+1. Apri http://localhost:8080
+2. Clicca sul nominativo accanto a "Operatore"
+3. Scrivi il tuo nominativo
+4. Premi INVIO
 
-Se non li cambi, il Consigliere penserà di trovarsi a Trieste e userà il
-mio nominativo nei log.
+Il valore viene salvato nella tabella delle impostazioni e rimane disponibile
+ai successivi avvii.
 
+Per impostare il QTH dell'operatore:
 
-2.1 Cambiare il nominativo operatore
--------------------------------------
-Non serve aprire nessun file. Si fa direttamente dalla pagina del programma.
+1. Clicca su "QTH: Imposta locator" accanto al nominativo
+2. Inserisci un locator Maidenhead di 4 o 6 caratteri, per esempio JN65 o JN65ER
+3. Premi INVIO
 
-Procedura:
-1. Avvia il Consigliere e apri il browser su http://localhost:8080
-2. In cima alla pagina vedrai scritto: Operatore: I6502TR ✎
-3. Clicca sopra quella scritta
-4. Compare un campo di testo: cancella il nominativo e scrivi il tuo
-5. Premi Invio
+Il programma valida il locator e ricava localmente il centro geografico della
+cella, espresso in latitudine e longitudine. Le coordinate derivate non vengono
+inviate a NOAA o POTA e non richiedono servizi di geolocalizzazione.
 
-Il nominativo viene salvato automaticamente e resta memorizzato anche
-dopo aver spento e riacceso il programma.
-
-
-2.2 Cambiare la tua posizione geografica (QTH)
------------------------------------------------
-File da modificare: main.py (nella cartella principale)
-
-Procedura:
-1. Apri il file "main.py" con Blocco Note o TextEdit
-2. Cerca (Ctrl+F) la riga: LAT = 45.46
-3. Troverai queste due righe vicine all'inizio del file:
-   
-   LAT = 45.46
-   LNG = 12.35
-
-4. Sostituisci i numeri con le coordinate della tua stazione:
-   - LAT = Latitudine (es. per Roma: 41.90, per Milano: 45.46, 
-     per Catania: 37.50)
-   - LNG = Longitudine (es. per Roma: 12.50, per Milano: 9.19, 
-     per Catania: 15.08)
-
-   IMPORTANTE: Usa sempre il PUNTO come separatore decimale, NON la 
-   virgola. Scrivere "41,90" bloccherebbe il programma!
-
-5. Salva il file
-
-Come trovare le tue coordinate:
-- Apri Google Maps nel browser
-- Clicca con il tasto destro sulla tua casa (o centro città)
-- Seleziona "Che cosa c'è qui?" 
-- Copia i due numeri: il primo è LAT, il secondo è LNG
-
-Precauzioni prima di modificare:
-- Fai un backup: Prima di modificare, copia il file originale e 
-  rinominalo "main.py.originale" o "index.html.originale"
-- Non usare Word: Usa solo editor di testo semplice (Blocco Note, 
-  TextEdit, Notepad++). Word aggiunge formattazione che corrompe il file.
+Il locator nel modulo "Nuovo QSO" resta invece quello della singola stazione
+ascoltata e viene salvato separatamente in ciascun QSO.
 
 
 ================================================================================
-3. ACCENSIONE E COLLEGAMENTO
+3. INSTALLAZIONE E AVVIO
 ================================================================================
 
-Avvio del programma:
+WINDOWS
+-------
 
-Su Linux/Raspberry Pi (versione attuale):
-1. Apri il terminale
-2. Scrivi: python main.py e premi Invio
-3. Vedrai scritto: "Server avviato su http://0.0.0.0:8080"
+1. Scarica ConsigliereDiStazione.exe dal repository ufficiale
+2. Fai doppio clic sul file
+3. Lascia aperta la finestra nera
+4. Il browser si apre automaticamente su http://localhost:8080
 
-Su Windows:
-1. Doppio click su "ConsigliereDiStazione.exe"
-2. Aspetta qualche secondo che appaia la finestra nera (non chiuderla!)
-3. Il browser si apre da solo
+Per spegnere premi INVIO nella finestra nera oppure chiudila. Chiudere soltanto
+la scheda del browser non arresta il server.
 
-Collegamento:
-Apri il tuo browser e nella barra degli indirizzi scrivi esattamente:
-http://localhost:8080
-oppure
-127.0.0.1:8080
-
-Premi Invio. Vedrai comparire la pagina blu del Consigliere.
-
-Suggerimento: Metti questa pagina nei preferiti (segnalibri) del browser.
+Per gli avvisi di SmartScreen e Defender consulta GUIDA_WINDOWS.txt.
 
 
-================================================================================
-4. IL PANNELLO DI CONTROLLO
-================================================================================
+LINUX / RASPBERRY PI
+--------------------
 
-La schermata principale è divisa in tre zone:
+Da una copia del repository:
 
-ZONA SUPERIORE (blu scuro):
-- Il numero totale dei tuoi QSO registrati
-- Le statistiche per banda (quanti contatti hai fatto sui 20m, 40m, ecc.)
+  python3 -m venv .venv
+  .venv/bin/pip install -r requirements.txt
+  .venv/bin/python src/main.py
 
-ZONA CENTRALE (due colonne):
-- Sinistra: Il modulo per scrivere i nuovi ascolti
-- Destra: I comandi per il Consigliere (dati solari, ricerca stazioni, 
-  consigli AI)
+Il server ascolta per impostazione predefinita soltanto su 127.0.0.1:8080; usa
+http://localhost:8080. Per l'accesso da altri dispositivi di una rete fidata si
+può impostare CONSIGLIERE_HOST=0.0.0.0. È una modalità avanzata: il programma
+non dispone di account o autenticazione e non va esposto a Internet.
 
-ZONA INFERIORE (tabella):
-- L'elenco degli ultimi ascolti registrati, con data e ora
-- Qui compaiono anche i "rapporti automatici" del sistema sui dati NOAA
+Per arrestarlo premi CTRL+C nel terminale.
 
 
 ================================================================================
-5. REGISTRARE UN ASCOLTO (QSO)
+4. PANNELLO DI CONTROLLO
 ================================================================================
 
-Quando catturi una stazione, procedi così:
+La pagina comprende:
 
-1. Frequenza: Nel campo bianco scrivi la frequenza in MHz 
-   (esempio: 14.250 oppure 7.180). Non serve scrivere "MHz", basta il numero. 
-   Se metti un numero sopra i 1000, il sistema capisce che sono kHz e converte 
-   automaticamente.
+- intestazione con nominativo, totale QSO e statistiche per banda;
+- modulo "Nuovo QSO";
+- riquadro "Dati in tempo reale" con NOAA, POTA e i due controlli;
+- tabella degli ultimi 10 QSO manuali;
+- pulsante "Apri storico completo";
+- comandi per esportare CSV/ADIF e scaricare un backup SQLite.
 
-2. Modo: Dal menu a tendina scegli il tipo di emissione (SSB, CW, FT8, AM, FM)
-
-3. Nominativo: Scrivi il callsign della stazione (esempio: IK1ABC). 
-   Il sistema accetta sia maiuscole che minuscole, poi le mette in automatico 
-   in maiuscolo.
-
-4. RST Ricevuto: Il rapporto di ricezione (esempio: 59, 579, 5nn per il CW). 
-   Se non l'hai preso, lascia vuoto.
-
-5. Locatore: Il QTH locator della stazione (esempio: JN45MM). 
-   Se non lo sai, lascia vuoto.
-
-6. Note: Qui puoi scrivere ciò che vuoi: "QSB forte", "Voce femminile", 
-   "QRM da vicino", "Primo contatto con questo paese", ecc.
-
-7. Clicca il bottone giallo "Salva QSO".
-
-Risultato: La pagina si aggiorna e vedi il tuo contatto comparire in fondo 
-alla tabella, con l'orario esatto.
-
-Per vedere le note lunghe:
-Nella tabella dei QSO, le note sono tagliate se sono lunghe. 
-Clicca sulla riga con il mouse: si apre e mostra tutto il testo. 
-Clicca di nuovo per chiuderla.
+I record tecnici creati da NOAA e dagli alert restano nel database ma non
+compaiono tra gli ultimi QSO e non entrano nello storico QSO consultabile.
 
 
 ================================================================================
-6. CONTROLLARE LA PROPAGAZIONE
+5. REGISTRARE E CONSULTARE I QSO
 ================================================================================
 
-Prima di accendere la radio, puoi controllare le condizioni:
+Compila il modulo "Nuovo QSO":
 
-Aggiornare i dati solari:
-Clicca il bottone verde "Aggiorna Dati Solar (NOAA)".
+1. Frequenza: inserisci i MHz, per esempio 14.250 o 7.074.
+2. Modo: seleziona il tipo di emissione.
+3. Nominativo: viene convertito in maiuscolo.
+4. RST ricevuto: facoltativo.
+5. Locator QTH della stazione: facoltativo, massimo 6 caratteri.
+6. Note: testo libero.
+7. Premi "Salva QSO".
 
-Il sistema si collega ai satelliti meteorologici americani e scarica:
-- K-index: l'indice geomagnetico (se è basso, meglio è)
-- SFI: il Solar Flux Index (se è alto, meglio è per le alte frequenze)
+Il nuovo record compare tra gli ultimi 10 QSO. Per espandere una nota lunga,
+clicca sulla relativa cella nella tabella.
 
-Dopo qualche secondo compare una scritta che ti dice se la propagazione è 
-"Eccellente", "Buona" o "Disturbata". Questo dato viene salvato automaticamente.
+STORICO COMPLETO
+----------------
 
-Cercare stazioni attive (POTA):
-Dal menu a tendina scegli una banda (es. 20m) e un modo (es. FT8), 
-poi clicca "Cerca Stazioni Attive".
+Premi "Apri storico completo" per consultare tutti i QSO manuali. Lo storico:
 
-Il Consigliere consulta il database POTA (Parks on the Air) e ti mostra chi 
-sta trasmettendo in questo momento su quella banda. Utile per trovare subito 
-qualcosa da ascoltare.
+- carica 50 record per pagina;
+- cerca in nominativo, locator e note;
+- filtra per banda e modo;
+- permette di modificare o eliminare i QSO manuali;
+- si chiude con il pulsante "Chiudi", con ESC o cliccando fuori dal pannello.
 
-
-================================================================================
-7. CONSULTARE IL CONSIGLIERE
-================================================================================
-
-Questa è la funzione speciale. Dopo aver registrato qualche QSO e aver 
-aggiornato i dati solari, clicca il bottone rosso "Chiedi Consiglio all'IA".
-
-Il sistema analizzerà:
-- Le condizioni solari attuali (K-index, SFI)
-- Le bande dove hai operato di più ultimamente
-- L'ora del giorno
-- L'attività POTA in corso
-
-E ti risponderà con un consiglio scritto in italiano, tipo:
-"Oggi pomeriggio propagazione eccellente sui 20 metri verso Est. 
-Il K-index è stabile a 2. Prova a cercare attivatori POTA sul 14.074 MHz."
-
-Nota: Se hai avviato swlbot RAG sulla porta 8081, i consigli vengono generati
-dall'intelligenza artificiale locale usando anche il corpus tecnico. Se il RAG non è avviato,
-il Consigliere funziona lo stesso: i consigli vengono calcolati
-automaticamente dai dati NOAA e dall'attività POTA.
+I campi sono validati anche dal server: frequenza finita e compresa nei limiti,
+modo tra quelli supportati, nominativo e locator nel formato previsto e limiti
+di lunghezza per RST e note.
 
 
 ================================================================================
-8. COSA FARE SE... (RISOLUZIONE PROBLEMI)
+6. DATI NOAA E STAZIONI POTA
 ================================================================================
 
-...la pagina non si apre
-- Controlla che il programma sia avviato (la finestra nera del terminale 
-  deve essere aperta)
-- Assicurati di aver scritto correttamente localhost:8080 nella barra 
-  degli indirizzi
-- Prova a ricaricare la pagina premendo F5
+AGGIORNA DATI SOLAR (NOAA)
+--------------------------
 
-...il Consigliere mostra "CONSIGLIO LOCALE"
-- swlbot RAG e il fallback Qwen diretto non sono disponibili.
-- Il consiglio mostrato è comunque valido: viene calcolato localmente dai
-  dati NOAA, dall'attività POTA e dalle statistiche del registro.
+Il pulsante legge dai servizi NOAA SWPC:
 
-...il Consigliere mostra "CONSIGLIO QWEN SENZA RAG"
-- swlbot RAG non è disponibile, ma Ollama e qwen3.5:4b stanno funzionando.
-- La risposta usa i dati correnti ma non consulta il corpus tecnico; per questo
-  viene mostrato un avviso e il consiglio è meno verificabile.
+- K-index, indicatore dell'attività geomagnetica;
+- SFI, Solar Flux Index.
 
-...i dati NOAA non arrivano
-- Controlla che il computer sia collegato a internet
-- Clicca sul bottone "Test" accanto a "NOAA Status" per vedere se la 
-  connessione funziona
-- Se il sito NOAA è in manutenzione, aspetta qualche minuto e riprova
+Il risultato e una breve interpretazione vengono mostrati nella pagina. Viene
+anche salvato un record tecnico di tipo PROP, che non appare nel registro QSO.
+Se lo stesso dato proviene dalla cache ed è appena stato salvato, il programma
+evita di creare un duplicato.
+Il pulsante "Test" accanto a "NOAA Status" verifica la raggiungibilità del
+servizio.
 
-...ho paura di perdere i miei QSO
-- Il file "swl_logs.db" È il tuo registro. Copialo periodicamente su USB.
-- È un file SQLite standard: puoi ispezionarlo con DB Browser for SQLite.
+K-index e SFI sono indicatori: non garantiscono da soli che una banda sia
+aperta e vanno confrontati con segnali e spot correnti.
 
-...voglio spegnere tutto
-- Chiudi la scheda del browser
-- Se hai avviato da terminale, premi CTRL+C nella finestra nera, 
-  oppure chiudi la finestra
-- I dati sono già salvati, non rischi di perderli
+
+CERCA STAZIONI ATTIVE (POTA)
+----------------------------
+
+1. Seleziona banda e modo
+2. Premi "Cerca Stazioni Attive (POTA)"
+
+Il programma interroga POTA.app e mostra fino a 10 spot correnti che
+corrispondono al filtro. Mostra anche parco e locator; quando il QTH operatore è
+impostato, per ogni spot con locator valido calcola distanza in chilometri,
+azimut e direzione. Questa ricerca non salva alcun QSO.
+
+Le letture NOAA e POTA usano cache brevi, rispettivamente di 60 e 30 secondi.
+Se un aggiornamento fallisce ma esiste un valore precedente, l'interfaccia può
+mostrare l'ultimo dato valido marcato come dato in cache.
 
 
 ================================================================================
-9. APPENDICE PER TECNICI
+7. I DUE CONTROLLI: ALERT E CONSIGLIO
 ================================================================================
 
-Porta di default: 8080. Se è occupata, modifica l'ultima riga di main.py
-(cambia port=8080 con un altro numero, es. 8082; la 8081 è riservata a swlbot RAG)
+CONTROLLA ORA (GENERA ALERT)
+----------------------------
 
-Database: SQLite gestito tramite SQLAlchemy, tabella "qsos".
-Colonne: id, timestamp, frequency, mode, call_sign, rst_received, 
-locator, notes
+Quando viene premuto, il programma:
 
-Servizio AI: swlbot RAG, endpoint predefinito http://127.0.0.1:8081/api/advice.
-Configurazione RAG tramite SWLBOT_RAG_URL e SWLBOT_RAG_TIMEOUT.
-Fallback diretto tramite DIRECT_LLM_URL, DIRECT_LLM_MODEL e DIRECT_LLM_TIMEOUT.
+1. legge K-index e SFI aggiornati da NOAA;
+2. esegue una lettura POTA che raggruppa gli spot di tutte le bande riconosciute;
+3. usa il QTH per calcolare distanza e direzione degli spot localizzati;
+4. valuta le condizioni correnti;
+5. se la valutazione contiene elementi sufficienti, genera un alert tramite
+   RAG, Qwen o regole locali;
+6. salva l'eventuale alert come record tecnico.
 
-Coordinate stazione: Modificabili nel file main.py, variabili LAT e LNG 
-(vedi sezione 2.2 di questo manuale)
+Questo controllo NON legge i QSO inseriti a mano. Il suo alert non viene
+mostrato come QSO nello storico. Con condizioni non rilevanti il controllo può
+concludersi senza creare un alert.
 
-Note sui file:
-- main.py = contiene le coordinate geografiche (LAT/LNG) e la logica
-- swl_logs.db = il database dei QSO e delle impostazioni (non cancellare!)
 
-Il nominativo operatore si cambia direttamente dalla pagina web,
-non serve più editare i file.
+CHIEDI CONSIGLIO ALL'IA (USA ANCHE IL TUO STORICO)
+--------------------------------------------------
+
+Quando viene premuto, il programma:
+
+1. legge K-index e SFI aggiornati da NOAA;
+2. legge POTA su tutte le bande riconosciute;
+3. calcola dal QTH distanza, azimut e direzione degli spot dotati di locator;
+4. aggrega in SQLite tutti i QSO manuali presenti nel database, senza limite
+   temporale o numerico, e calcola le statistiche per banda e modo;
+5. costruisce una valutazione deterministica;
+6. chiede a RAG o Qwen di formulare il consiglio, con fallback alle regole.
+
+Il consiglio viene mostrato nella pagina ma NON viene salvato nel database.
+Non è necessario premere prima "Aggiorna Dati Solar" o "Cerca Stazioni": il
+controllo esegue direttamente entrambe le letture.
+
+Le bande più presenti nello storico descrivono le abitudini dell'operatore e
+non vengono confuse con l'attività POTA corrente.
+
+
+================================================================================
+8. RAG, QWEN E REGOLE LOCALI — WORK IN PROGRESS
+================================================================================
+
+Il percorso di generazione è:
+
+1. SWLBOT RAG
+   Il servizio predefinito è http://127.0.0.1:8081/api/advice. Unisce i dati
+   correnti al corpus tecnico locale.
+
+2. QWEN DIRETTO SENZA RAG
+   Se il RAG non risponde, l'app prova Ollama su
+   http://127.0.0.1:11434/api/chat con qwen3.5:4b. Qwen riceve la valutazione
+   deterministica da riformulare e non il corpus tecnico. La pagina mostra
+   chiaramente "CONSIGLIO QWEN SENZA RAG".
+
+3. REGOLE LOCALI
+   Se anche Ollama non risponde, l'app mostra "CONSIGLIO LOCALE" calcolato
+   senza modello linguistico.
+
+L'integrazione con il modello locale dell'autore è sperimentale e in fase di
+sviluppo. Nessuna delle tre modalità garantisce aperture, direzioni o risultati:
+verifica sempre i consigli con NOAA, POTA e segnali realmente ricevuti.
+
+Gli endpoint predefiniti sono locali. Se SWLBOT_RAG_URL o DIRECT_LLM_URL viene
+impostato verso un server remoto, il riepilogo operativo trasmesso può comprendere
+QTH, statistiche aggregate per banda e modo e dati NOAA/POTA. I singoli record
+QSO non vengono inclusi nel prompt attuale.
+
+
+================================================================================
+9. DATABASE, BACKUP E RISOLUZIONE PROBLEMI
+================================================================================
+
+POSIZIONE DEL DATABASE
+----------------------
+
+Windows, nuove installazioni:
+  %LOCALAPPDATA%\ConsigliereDiStazione\swl_logs.db
+
+Linux:
+  ${XDG_DATA_HOME:-~/.local/share}/consigliere-di-stazione/swl_logs.db
+
+Sviluppo da sorgenti:
+  swl_logs.db nella radice del repository
+
+Compatibilità: se l'eseguibile Windows trova un vecchio swl_logs.db accanto al
+file .exe, continua a usare quel database invece della cartella LOCALAPPDATA.
+La variabile CONSIGLIERE_DATA_DIR permette di scegliere una directory diversa.
+
+BACKUP
+------
+
+Dalla dashboard clicca "Backup database" per scaricare una copia SQLite
+coerente anche con il programma aperto. In alternativa chiudi il programma e
+copia swl_logs.db in un luogo sicuro. Per ripristinarlo, sostituisci il file
+nella posizione effettivamente usata dall'installazione, sempre a programma
+chiuso.
+
+ESPORTAZIONE
+------------
+
+"Esporta CSV" e "Esporta ADIF" includono tutti i QSO manuali e non includono i
+record tecnici PROP/ALERT. Il CSV contiene data locale e data UTC; l'ADIF usa
+data e ora UTC secondo il formato di interscambio. Il backup SQLite contiene
+invece l'intero database, comprese impostazioni e righe tecniche.
+
+PROBLEMI COMUNI
+---------------
+
+La pagina non si apre:
+- controlla che il server sia ancora in esecuzione;
+- prova http://localhost:8080;
+- verifica che la porta 8080 non sia occupata.
+
+NOAA o POTA non rispondono:
+- verifica Internet;
+- prova il test NOAA;
+- attendi se il servizio pubblico è temporaneamente indisponibile.
+
+Compare "CONSIGLIO LOCALE":
+- RAG e Ollama/Qwen non sono raggiungibili;
+- l'app ha usato la valutazione deterministica integrata.
+
+Compare "CONSIGLIO QWEN SENZA RAG":
+- Ollama/Qwen risponde, ma swlbot RAG non è raggiungibile;
+- avvia il server RAG sulla porta 8081 per usare il corpus.
+
+Il programma si chiude subito:
+- avvialo da terminale per leggere l'errore;
+- verifica dipendenze e porta 8080;
+- su Windows conserva la finestra nera aperta.
+
+
+================================================================================
+10. APPENDICE TECNICA
+================================================================================
+
+Applicazione:
+- FastAPI + Uvicorn, porta 8080
+- SQLite tramite SQLAlchemy
+- template HTML locale
+
+Tabelle database:
+- qsos: id, timestamp, frequency, mode, call_sign, rst_received, rst_sent,
+  locator, notes
+- settings: key, value
+
+Record tecnici nella tabella qsos:
+- mode=PROP per gli aggiornamenti NOAA salvati manualmente
+- mode=ALERT per gli alert generati da "Controlla Ora"
+- entrambi hanno frequency=0 e sono esclusi dalle viste QSO
+
+Endpoint principali:
+- GET  /                         dashboard
+- POST /add                      salva un QSO
+- GET  /qso/history              storico paginato e filtrabile
+- POST /qso/{id}/edit            modifica un QSO manuale
+- POST /qso/{id}/delete          elimina un QSO manuale
+- GET  /export/qso.csv           esporta tutti i QSO manuali in CSV
+- GET  /export/qso.adi           esporta tutti i QSO manuali in ADIF
+- GET  /backup/database          scarica un backup SQLite coerente
+- GET  /fetch/solar              aggiorna e salva NOAA
+- GET  /fetch/dxspots            ricerca POTA filtrata
+- POST /ui/trigger-check         genera un alert
+- GET  /ai/analyze               genera il consiglio con lo storico
+- GET/POST /settings/callsign    legge o salva il nominativo
+- GET/POST /settings/locator     salva il QTH e restituisce le coordinate derivate
+
+Variabili di configurazione:
+- SWLBOT_RAG_URL, default http://127.0.0.1:8081/api/advice
+- SWLBOT_RAG_TIMEOUT, default 90 secondi
+- DIRECT_LLM_URL, default http://127.0.0.1:11434/api/chat
+- DIRECT_LLM_MODEL, default qwen3.5:4b
+- DIRECT_LLM_TIMEOUT, default 90 secondi
+- CONSIGLIERE_DATA_DIR, directory alternativa per swl_logs.db
+- CONSIGLIERE_HOST, default 127.0.0.1
+- CONSIGLIERE_PORT, default 8080
+
+Sia src/main.py sia l'eseguibile ascoltano soltanto su 127.0.0.1:8080 per
+impostazione predefinita. Le richieste di scrittura provenienti da un'origine
+web diversa dall'app vengono rifiutate. CONSIGLIERE_HOST=0.0.0.0 abilita
+volontariamente la rete locale e deve essere usato soltanto su reti fidate.
 
 
 ================================================================================
 Fine manuale - 73 - I6502TR
 
-Per aggiornamenti e versioni nuove, controlla la pagina GitHub del progetto.
+Aggiornamenti: https://github.com/111blackeagle111/consigliere-di-stazione
 ================================================================================

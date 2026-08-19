@@ -19,4 +19,5 @@ urllib3>=2.0.0
 
 # Note:
 # - uvicorn[standard] include dipendenze per performance ottimali
-# - Il modulo AI viene fornito dal servizio locale swlbot RAG
+# - Ollama, Qwen, il corpus e swlbot RAG sono servizi locali facoltativi e non
+#   vengono installati da questo file; senza di essi l'app usa le regole locali

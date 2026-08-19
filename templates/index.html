@@ -241,8 +241,11 @@
             margin: 5px 0;
             border-radius: 5px;
             border-left: 3px solid #95e1d3;
+        }
+        .spot-main {
             display: flex;
             justify-content: space-between;
+            gap: 12px;
         }
         .spot-callsign {
             font-weight: bold;
@@ -251,6 +254,11 @@
         .spot-freq {
             font-family: monospace;
             opacity: 0.9;
+        }
+        .spot-meta {
+            margin-top: 4px;
+            font-size: 0.82em;
+            opacity: 0.8;
         }
         .full-width {
             grid-column: 1 / -1;
@@ -282,8 +290,35 @@
         .btn-history {
             background: #5dade2;
             color: white;
+            margin: 0;
+        }
+        .log-actions {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 10px;
             margin-top: 16px;
         }
+        .download-link {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 44px;
+            padding: 10px;
+            border-radius: 5px;
+            color: #1e3c72;
+            background: #95e1d3;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .download-link.backup { background: #ffd166; }
+        .history-action-cell { white-space: nowrap; }
+        .history-action-cell button {
+            width: auto;
+            margin: 2px;
+            padding: 6px 9px;
+            font-size: 0.8em;
+        }
+        .history-action-cell .delete-qso { background: #ff6b6b; color: white; }
         .history-modal {
             display: none;
             position: fixed;
@@ -328,7 +363,7 @@
         .history-filters input, .history-filters select, .history-filters button { margin: 0; }
         .history-filters button { width: auto; padding: 10px 18px; }
         .history-table-wrap { overflow: auto; padding: 0 20px; }
-        #historyTable { min-width: 950px; }
+        #historyTable { min-width: 1120px; }
         #historyTable td { max-width: 340px; }
         #historyEmpty { text-align: center; padding: 30px; opacity: 0.75; display: none; }
         @media (max-width: 968px) {
@@ -336,6 +371,7 @@
                 grid-template-columns: 1fr;
             }
             .history-filters { grid-template-columns: 1fr 1fr; }
+            .log-actions { grid-template-columns: 1fr 1fr; }
         }
     </style>
 </head>
@@ -348,10 +384,20 @@
                 <strong>{{ callsign }}</strong> ✎
             </span>
             <span id="callsign-edit" style="display:none">
-                <input id="callsign-input" type="text" maxlength="10"
+                <input id="callsign-input" type="text" maxlength="20"
                        style="width:100px;font-weight:bold;text-transform:uppercase;background:#1e3c72;color:#ffd700;border:1px solid #ffd700;border-radius:4px;padding:2px 6px"
-                       onkeydown="if(event.key==='Enter') saveCallsign(); if(event.key==='Escape') cancelCallsign();"
+                       onkeydown="if(event.key==='Enter'){event.preventDefault(); saveCallsign();} if(event.key==='Escape'){event.preventDefault(); cancelCallsign();}"
                        onblur="saveCallsign()">
+            </span>
+            | QTH:
+            <span id="locator-display" data-locator="{{ operator_locator }}" onclick="editLocator()" style="cursor:pointer" title="Clicca per impostare il locator del tuo QTH">
+                <strong>{{ operator_locator or 'Imposta locator' }}</strong> ✎
+            </span>
+            <span id="locator-edit" style="display:none">
+                <input id="locator-input" type="text" maxlength="6" placeholder="es. JN65"
+                       style="width:105px;font-weight:bold;text-transform:uppercase;background:#1e3c72;color:#ffd700;border:1px solid #ffd700;border-radius:4px;padding:2px 6px"
+                       onkeydown="if(event.key==='Enter'){event.preventDefault(); saveLocator();} if(event.key==='Escape'){event.preventDefault(); cancelLocator();}"
+                       onblur="saveLocator()">
             </span>
             | Laboratorio AI Locale
         </div>
@@ -375,7 +421,7 @@
             <div class="card">
                 <h2>📝 Nuovo QSO</h2>
                 <form id="qsoForm">
-                    <input type="number" step="0.001" name="frequency" placeholder="Frequenza (MHz) - es: 14.250" required>
+                    <input type="number" min="0.001" max="300000" step="0.001" name="frequency" placeholder="Frequenza (MHz) - es: 14.250" required>
                     <select name="mode" required>
                         <option value="">Seleziona Modo</option>
                         <option value="SSB">SSB</option>
@@ -383,14 +429,15 @@
                         <option value="FM">FM</option>
                         <option value="AM">AM</option>
                         <option value="FT8">FT8</option>
+                        <option value="FT4">FT4</option>
                         <option value="PSK31">PSK31</option>
                         <option value="RTTY">RTTY</option>
                         <option value="JT65">JT65</option>
                     </select>
-                    <input type="text" name="call_sign" placeholder="Nominativo - es: IK1ABC" required>
-                    <input type="text" name="rst_received" placeholder="RST Ricevuto - es: 59">
+                    <input type="text" name="call_sign" maxlength="20" placeholder="Nominativo - es: IK1ABC" required>
+                    <input type="text" name="rst_received" maxlength="10" placeholder="RST Ricevuto - es: 59">
                     <input type="text" name="locator" placeholder="Locatore QTH - es: JN45MM" maxlength="6">
-                    <textarea name="notes" rows="2" placeholder="Note (propagazione, QSB, stazione, etc...)"></textarea>
+                    <textarea name="notes" rows="2" maxlength="5000" placeholder="Note (propagazione, QSB, stazione, etc...)"></textarea>
                     <button type="submit">💾 Salva QSO</button>
                 </form>
             </div>
@@ -486,7 +533,12 @@
                 <p style="text-align: center; opacity: 0.7; padding: 20px;">Nessun QSO registrato. Inizia ad ascoltare!</p>
                 {% endif %}
             </div>
-            <button class="btn-history" onclick="openHistory()">📚 Apri storico completo</button>
+            <div class="log-actions">
+                <button class="btn-history" onclick="openHistory()">📚 Apri storico completo</button>
+                <a class="download-link" href="/export/qso.csv" download>⬇️ Esporta CSV</a>
+                <a class="download-link" href="/export/qso.adi" download>📻 Esporta ADIF</a>
+                <a class="download-link backup" href="/backup/database" download>💾 Backup database</a>
+            </div>
         </div>
     </div>
 
@@ -514,7 +566,7 @@
             <div class="history-table-wrap">
                 <table id="historyTable">
                     <thead>
-                        <tr><th>Data/Ora</th><th>Banda</th><th>Frequenza</th><th>Modo</th><th>Nominativo</th><th>RST</th><th>Locator</th><th>Note</th></tr>
+                        <tr><th>Data/Ora</th><th>Banda</th><th>Frequenza</th><th>Modo</th><th>Nominativo</th><th>RST</th><th>Locator</th><th>Note</th><th>Azioni</th></tr>
                     </thead>
                     <tbody id="historyBody"></tbody>
                 </table>
@@ -532,6 +584,7 @@
         const historyLimit = 50;
         let historyOffset = 0;
         let historyTotal = 0;
+        const historyItems = new Map();
 
         function historyCell(row, value) {
             const cell = document.createElement('td');
@@ -544,6 +597,7 @@
             const info = document.getElementById('historyInfo');
             const empty = document.getElementById('historyEmpty');
             body.replaceChildren();
+            historyItems.clear();
             empty.style.display = 'none';
             info.textContent = 'Caricamento…';
 
@@ -562,6 +616,7 @@
                 historyTotal = data.total;
 
                 data.items.forEach(item => {
+                    historyItems.set(item.id, item);
                     const row = document.createElement('tr');
                     const timestamp = item.timestamp ? new Date(item.timestamp).toLocaleString('it-IT') : '-';
                     historyCell(row, timestamp);
@@ -572,6 +627,19 @@
                     historyCell(row, item.rst_received || '-');
                     historyCell(row, item.locator || '-');
                     historyCell(row, item.notes || '-');
+                    const actions = document.createElement('td');
+                    actions.className = 'history-action-cell';
+                    const editButton = document.createElement('button');
+                    editButton.type = 'button';
+                    editButton.textContent = '✏️ Modifica';
+                    editButton.addEventListener('click', () => editHistoryQso(item.id));
+                    const deleteButton = document.createElement('button');
+                    deleteButton.type = 'button';
+                    deleteButton.className = 'delete-qso';
+                    deleteButton.textContent = '🗑️ Elimina';
+                    deleteButton.addEventListener('click', () => deleteHistoryQso(item.id));
+                    actions.append(editButton, deleteButton);
+                    row.appendChild(actions);
                     body.appendChild(row);
                 });
 
@@ -610,6 +678,51 @@
             loadHistory();
         }
 
+        async function editHistoryQso(id) {
+            const item = historyItems.get(id);
+            if (!item) return;
+            const frequency = prompt('Frequenza in MHz', item.frequency);
+            if (frequency === null) return;
+            const mode = prompt('Modo', item.mode);
+            if (mode === null) return;
+            const callSign = prompt('Nominativo', item.call_sign);
+            if (callSign === null) return;
+            const rst = prompt('RST ricevuto', item.rst_received || '');
+            if (rst === null) return;
+            const locator = prompt('Locator', item.locator || '');
+            if (locator === null) return;
+            const notes = prompt('Note', item.notes || '');
+            if (notes === null) return;
+
+            try {
+                const response = await fetch(`/qso/${id}/edit`, {
+                    method: 'POST',
+                    body: new URLSearchParams({
+                        frequency, mode, call_sign: callSign,
+                        rst_received: rst, locator, notes
+                    })
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || 'Impossibile modificare il QSO');
+                location.reload();
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        async function deleteHistoryQso(id) {
+            const item = historyItems.get(id);
+            if (!item || !confirm(`Eliminare definitivamente il QSO con ${item.call_sign}?`)) return;
+            try {
+                const response = await fetch(`/qso/${id}/delete`, {method: 'POST'});
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || 'Impossibile eliminare il QSO');
+                location.reload();
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
         document.getElementById('historyModal').addEventListener('click', event => {
             if (event.target.id === 'historyModal') closeHistory();
         });
@@ -623,7 +736,7 @@
             const txt = document.getElementById('noaa-text');
             
             dot.textContent = '🟡';
-            txt.textContent = 'Testing...';
+            txt.textContent = 'Test in corso...';
             
             try {
                 const r = await fetch('/debug/noaa-test');
@@ -666,16 +779,16 @@
                         : d.alert.source === 'rules'
                             ? '<br><br>🧭 <small>RAG e LLM non disponibili: alert calcolato con le regole locali.</small>'
                             : '';
-                    resp.innerHTML = `✅ <strong>Alert Generato!</strong><br><br>🎯 ${d.alert.message}<br><br><em>Score: ${d.evaluation.score}/100 - Livello: ${d.evaluation.level}</em>${sourceWarning}`;
+                    resp.innerHTML = `✅ <strong>Alert Generato!</strong><br><br>🎯 ${escapeHtml(d.alert.message)}<br><br><em>Score: ${escapeHtml(d.evaluation.score)}/100 - Livello: ${escapeHtml(d.evaluation.level)}</em>${sourceWarning}`;
                 } else if (d.status === 'cached') {
                     resp.innerHTML = `ℹ️ <strong>Alert in cache</strong><br>Già inviato recentemente. Attendi 30 minuti o usa "force=true"`;
                 } else if (d.status === 'quiet') {
-                    resp.innerHTML = `ℹ️ <strong>Condizioni quiete</strong><br>Score troppo basso (${d.score}/100). Nessun alert necessario.<br><em>Forza comunque con /alert/check?force=true</em>`;
+                    resp.innerHTML = `ℹ️ <strong>Condizioni quiete</strong><br>Score troppo basso (${escapeHtml(d.score)}/100). Nessun alert necessario.<br><em>Forza comunque con /alert/check?force=true</em>`;
                 } else {
-                    resp.innerHTML = `⚠️ <strong>Stato:</strong> ${d.message || d.status}`;
+                    resp.innerHTML = `⚠️ <strong>Stato:</strong> ${escapeHtml(d.message || d.status)}`;
                 }
             } catch(e) {
-                resp.innerHTML = '❌ Errore di connessione: ' + e.message;
+                resp.innerHTML = '❌ Errore di connessione: ' + escapeHtml(e.message);
             } finally {
                 btn.disabled = false;
                 btn.textContent = '🔄 Controlla Ora (Genera Alert)';
@@ -699,7 +812,8 @@
                 if (response.ok) {
                     location.reload();
                 } else {
-                    alert('Errore salvataggio');
+                    const data = await response.json();
+                    alert(data.detail || 'Errore salvataggio');
                 }
             } catch (err) {
                 alert('Errore di connessione');
@@ -726,16 +840,16 @@
                 if (data.status === 'ok') {
                     resp.innerHTML = `<strong>✅ Dati Solar Aggiornati!</strong>
                     
-<strong>K-Index:</strong> ${data.data.k_index || 'N/A'}
-<strong>Solar Flux:</strong> ${data.data.sfi || 'N/A'}
-<strong>Condizioni:</strong> ${data.interpretation}
+<strong>K-Index:</strong> ${escapeHtml(data.data.k_index || 'N/A')}
+<strong>Solar Flux:</strong> ${escapeHtml(data.data.sfi || 'N/A')}
+<strong>Condizioni:</strong> ${escapeHtml(data.interpretation)}
 
-<em>Salvato automaticamente nel database</em>`;
+<em>Salvato automaticamente nel database${data.data.cached ? ` · cache ${escapeHtml(data.data.cache_age_seconds)}s${data.data.stale ? ' (ultimo dato valido)' : ''}` : ''}</em>`;
                 } else {
-                    resp.innerHTML = `<strong>❌ Errore:</strong> ${data.message || 'Dati non disponibili'}`;
+                    resp.innerHTML = `<strong>❌ Errore:</strong> ${escapeHtml(data.message || 'Dati non disponibili')}`;
                 }
             } catch (e) {
-                resp.innerHTML = `<strong>❌ Errore di connessione:</strong> ${e.message}`;
+                resp.innerHTML = `<strong>❌ Errore di connessione:</strong> ${escapeHtml(e.message)}`;
             } finally {
                 btn.disabled = false;
                 btn.textContent = '🌞 Aggiorna Dati Solar (NOAA)';
@@ -743,6 +857,12 @@
         }
 
         // Fetch DX Spots
+        function escapeHtml(value) {
+            const element = document.createElement('div');
+            element.textContent = String(value ?? '');
+            return element.innerHTML;
+        }
+
         async function fetchDxSpots() {
             const btn = document.querySelector('.btn-dx');
             const resp = document.getElementById('dx-response');
@@ -758,24 +878,34 @@
                 const response = await fetch(`/fetch/dxspots?band=${band}&mode=${mode}`);
                 const data = await response.json();
                 
-                let html = `<strong>📡 Spot ${band} ${mode} - Trovati: ${data.spots_found}</strong>\n\n`;
+                let html = `<strong>📡 Spot ${escapeHtml(band)} ${escapeHtml(mode)} - Trovati: ${escapeHtml(data.spots_found)}</strong>\n\n`;
                 
                 if (data.spots && data.spots.length > 0) {
                     data.spots.forEach(spot => {
+                        const location = spot.distance_km !== undefined
+                            ? `${spot.distance_km} km verso ${spot.direction} (${spot.bearing_deg}°)`
+                            : 'distanza non disponibile';
+                        const details = [spot.park, spot.grid, location].filter(Boolean).map(escapeHtml).join(' · ');
                         html += `<div class="spot-item">
-                            <span class="spot-callsign">${spot.call || 'N/A'}</span>
-                            <span class="spot-freq">${spot.freq || 'N/A'} MHz</span>
+                            <div class="spot-main">
+                                <span class="spot-callsign">${escapeHtml(spot.call || 'N/A')}</span>
+                                <span class="spot-freq">${escapeHtml(spot.freq || 'N/A')} MHz</span>
+                            </div>
+                            <div class="spot-meta">${details}</div>
                         </div>`;
                     });
                 } else {
                     html += '<em>Nessuna stazione attiva rilevata al momento</em>';
                 }
                 
-                html += `\n<em>Aggiornato: ${new Date().toLocaleTimeString()}</em>`;
+                const cacheLabel = data.cached
+                    ? ` · cache ${escapeHtml(data.cache_age_seconds)}s${data.stale ? ' (ultimo dato valido)' : ''}`
+                    : '';
+                html += `\n<em>Aggiornato: ${new Date().toLocaleTimeString()}${cacheLabel}</em>`;
                 resp.innerHTML = html;
                 
             } catch (e) {
-                resp.innerHTML = `<strong>❌ Errore:</strong> ${e.message}`;
+                resp.innerHTML = `<strong>❌ Errore:</strong> ${escapeHtml(e.message)}`;
             } finally {
                 btn.disabled = false;
                 btn.textContent = '📡 Cerca Stazioni Attive (POTA)';
@@ -799,14 +929,14 @@
                 if (!data.response || data.response === 'undefined') {
                     resp.innerHTML = '⚠️ <strong>Consiglio non disponibile.</strong><br>Controlla i dati NOAA e riprova.';
                 } else if (data.source === 'rules') {
-                    resp.innerHTML = '🧭 <strong>CONSIGLIO LOCALE:</strong><br><small>RAG e LLM non disponibili: risposta calcolata dai dati NOAA, POTA e dal registro.</small>\n\n' + data.response;
+                    resp.innerHTML = '🧭 <strong>CONSIGLIO LOCALE:</strong><br><small>RAG e LLM non disponibili: risposta calcolata dai dati NOAA, POTA e dal registro.</small>\n\n' + escapeHtml(data.response);
                 } else if (data.source === 'llm-direct') {
-                    resp.innerHTML = '⚠️ <strong>CONSIGLIO QWEN SENZA RAG:</strong><br><small>Il corpus tecnico non è disponibile: risposta generata soltanto dai dati correnti e quindi meno verificabile.</small>\n\n' + data.response;
+                    resp.innerHTML = '⚠️ <strong>CONSIGLIO QWEN SENZA RAG:</strong><br><small>Il corpus tecnico non è disponibile: risposta generata soltanto dai dati correnti e quindi meno verificabile.</small>\n\n' + escapeHtml(data.response);
                 } else {
-                    resp.innerHTML = '🎯 <strong>CONSIGLI SWLBOT RAG:</strong>\n\n' + data.response;
+                    resp.innerHTML = '🎯 <strong>CONSIGLI SWLBOT RAG:</strong>\n\n' + escapeHtml(data.response);
                 }
             } catch (e) {
-                resp.innerHTML = '❌ Errore di connessione: ' + e.message;
+                resp.innerHTML = '❌ Errore di connessione: ' + escapeHtml(e.message);
             } finally {
                 btn.disabled = false;
                 btn.textContent = '🤖 Chiedi Consiglio all\'IA (usa anche il tuo storico)';
@@ -822,22 +952,79 @@
             input.select();
         }
 
-        function saveCallsign() {
+        let callsignSaveInProgress = false;
+
+        async function saveCallsign() {
+            if (callsignSaveInProgress || document.getElementById('callsign-edit').style.display === 'none') return;
             const val = document.getElementById('callsign-input').value.trim().toUpperCase();
             if (!val) { cancelCallsign(); return; }
-            fetch('/settings/callsign', {
-                method: 'POST',
-                body: new URLSearchParams({callsign: val})
-            }).then(() => {
+            callsignSaveInProgress = true;
+            try {
+                const response = await fetch('/settings/callsign', {
+                    method: 'POST',
+                    body: new URLSearchParams({callsign: val})
+                });
+                if (!response.ok) throw new Error('Impossibile salvare il nominativo');
                 document.querySelector('#callsign-display strong').textContent = val;
                 document.getElementById('callsign-display').style.display = 'inline';
                 document.getElementById('callsign-edit').style.display = 'none';
-            });
+            } catch (error) {
+                alert(error.message);
+                document.getElementById('callsign-input').focus();
+            } finally {
+                callsignSaveInProgress = false;
+            }
         }
 
         function cancelCallsign() {
             document.getElementById('callsign-display').style.display = 'inline';
             document.getElementById('callsign-edit').style.display = 'none';
+        }
+
+        function editLocator() {
+            const display = document.getElementById('locator-display');
+            display.style.display = 'none';
+            document.getElementById('locator-edit').style.display = 'inline';
+            const input = document.getElementById('locator-input');
+            input.value = display.dataset.locator || '';
+            input.focus();
+            input.select();
+        }
+
+        let locatorSaveInProgress = false;
+
+        async function saveLocator() {
+            if (locatorSaveInProgress || document.getElementById('locator-edit').style.display === 'none') return;
+            const input = document.getElementById('locator-input');
+            const locator = input.value.trim().toUpperCase();
+            locatorSaveInProgress = true;
+            try {
+                const response = await fetch('/settings/locator', {
+                    method: 'POST',
+                    body: new URLSearchParams({locator})
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || 'Locator non valido');
+
+                const display = document.getElementById('locator-display');
+                display.dataset.locator = data.locator;
+                display.querySelector('strong').textContent = data.locator || 'Imposta locator';
+                display.title = data.locator
+                    ? `QTH ${data.locator} — ${data.latitude}, ${data.longitude}`
+                    : 'Clicca per impostare il locator del tuo QTH';
+                display.style.display = 'inline';
+                document.getElementById('locator-edit').style.display = 'none';
+            } catch (error) {
+                alert(error.message);
+                input.focus();
+            } finally {
+                locatorSaveInProgress = false;
+            }
+        }
+
+        function cancelLocator() {
+            document.getElementById('locator-display').style.display = 'inline';
+            document.getElementById('locator-edit').style.display = 'none';
         }
     </script>
 </body>

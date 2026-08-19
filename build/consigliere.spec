@@ -10,6 +10,7 @@ a = Analysis(
     binaries=[],
     datas=[
         ('../templates', 'templates'),
+        ('../VERSION', '.'),
         (_certifi_mod.where(), 'certifi'),
     ],
     hiddenimports=[

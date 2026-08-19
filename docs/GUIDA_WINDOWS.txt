@@ -1,176 +1,216 @@
 ================================================================================
                     GUIDA RAPIDA PER WINDOWS
-                  Consigliere di Stazione v1.0
+                Consigliere di Stazione v1.1-dev
                          di I6502TR
 ================================================================================
 
-Questa guida è per chi usa Windows e non ha mai sentito parlare di Python
-o di terminali. Segui i passi nell'ordine e in dieci minuti sei operativo.
+Questa guida è pensata per chi non usa Python o il terminale. Il registro,
+i dati NOAA e POTA e i consigli basati sulle regole funzionano direttamente
+dall'eseguibile. L'integrazione con il modello linguistico locale è ancora
+sperimentale e richiede componenti separati (vedi sezione 7).
 
 
 ================================================================================
 1. SCARICARE IL PROGRAMMA
 ================================================================================
 
-1. Apri il browser (Chrome, Edge, Firefox — va bene qualsiasi)
-2. Vai su: https://github.com/111blackeagle111/consigliere-di-stazione
-3. Nella lista dei file clicca su "ConsigliereDiStazione.exe"
-4. Clicca sul pulsante "Download raw file" (icona freccia verso il basso)
-5. Il file viene scaricato nella cartella "Download" del tuo computer
+1. Apri https://github.com/111blackeagle111/consigliere-di-stazione
+2. Clicca su "ConsigliereDiStazione.exe" nella lista dei file
+3. Clicca su "Download raw file" (freccia verso il basso)
+4. Salva il file in una cartella comoda, per esempio Desktop o Documenti
 
-Dimensione del file: circa 20 MB. Ci vogliono pochi secondi.
+Il file occupa circa 20 MB. Python non è necessario.
 
 
 ================================================================================
-2. SE WINDOWS BLOCCA IL FILE
+2. SE WINDOWS MOSTRA UN AVVISO
 ================================================================================
 
-Windows a volte mostra un avviso di sicurezza sui programmi scaricati da
-internet. Non è un virus — è la normale diffidenza di Windows verso i file
-nuovi. Ecco cosa fare:
+L'eseguibile non è firmato digitalmente. SmartScreen o Windows Defender
+possono quindi mostrare un avviso anche quando il file proviene dal repository
+ufficiale. Verifica sempre di averlo scaricato dall'indirizzo indicato sopra.
 
 Se compare "Windows ha protetto il PC":
 1. Clicca su "Ulteriori informazioni"
-2. Clicca su "Esegui comunque"
+2. Controlla il nome del file
+3. Se ti fidi della provenienza, clicca su "Esegui comunque"
 
-Se compare un avviso di Windows Defender:
-1. Clicca su "Mostra ulteriori informazioni" (o "More info")
-2. Clicca su "Esegui comunque"
-
-Se il file sparisce dalla cartella Download:
-Windows Defender lo ha messo in quarantena. Per recuperarlo:
-1. Apri Windows Security (cerca "Sicurezza di Windows" nel menu Start)
-2. Vai su "Protezione da virus e minacce"
-3. Clicca su "Cronologia protezione"
-4. Trova il file nell'elenco e clicca "Ripristina"
+Se Windows lo ha messo in quarantena, consulta "Sicurezza di Windows" >
+"Protezione da virus e minacce" > "Cronologia protezione" e valuta il
+ripristino soltanto dopo aver verificato la provenienza del file.
 
 
 ================================================================================
-3. AVVIARE IL PROGRAMMA
+3. AVVIARE E CHIUDERE IL PROGRAMMA
 ================================================================================
 
-1. Vai nella cartella dove hai salvato ConsigliereDiStazione.exe
-   (di solito: C:\Users\TuoNome\Downloads)
-2. Doppio click sul file
+1. Fai doppio clic su ConsigliereDiStazione.exe
+2. Lascia aperta la finestra nera
+3. Dopo pochi secondi il browser si apre su http://localhost:8080
 
-Cosa succede:
-- Si apre una finestra nera con scritto "Avvio in corso, attendere..."
-- Dopo 3-4 secondi si apre il browser con la pagina del Consigliere
-- Se il browser non si apre da solo, aprilo tu e scrivi: localhost:8080
+Se il browser non si apre automaticamente, aprilo manualmente e visita:
+http://localhost:8080
 
-IMPORTANTE: Non chiudere la finestra nera. Finché è aperta, il programma
-funziona. Chiuderla equivale a spegnere il Consigliere.
-
-Consiglio: Sposta il file sul Desktop o in una cartella comoda, così
-lo trovi sempre facilmente.
+Per spegnere il programma premi INVIO nella finestra nera oppure chiudila.
+Chiudere soltanto la scheda del browser non arresta il programma.
 
 
 ================================================================================
-4. PRIMO AVVIO: METTI IL TUO NOMINATIVO
+4. IMPOSTARE NOMINATIVO E QTH
 ================================================================================
 
-La prima volta che apri il programma vedrai in cima alla pagina:
+La prima volta compare "Operatore: I6502TR" in cima alla pagina.
 
-   Operatore: I6502TR ✎
+1. Clicca sul nominativo
+2. Scrivi il tuo nominativo
+3. Premi INVIO
 
-Quel nominativo è il mio. Cambialo con il tuo:
+L'impostazione viene salvata nello stesso database dei QSO.
 
-1. Clicca sulla scritta "I6502TR"
-2. Compare un campo di testo: cancella e scrivi il tuo nominativo
-3. Premi Invio
-
-Il nominativo viene salvato automaticamente. Non serve ripetere questa
-operazione ai prossimi avvii.
-
-
-================================================================================
-5. USARE IL PROGRAMMA
-================================================================================
-
-La pagina è divisa in due colonne:
-
-COLONNA SINISTRA — Il tuo quaderno di bordo:
-Compila i campi e clicca "Salva QSO" per registrare un ascolto.
-Campi disponibili: frequenza (in MHz), modo, nominativo della stazione
-ascoltata, RST ricevuto, locatore QTH, note libere.
-
-COLONNA DESTRA — Gli strumenti:
-- "Aggiorna Dati Solar (NOAA)": scarica K-index e Solar Flux Index dai
-  server americani. Clicca prima di operare per avere i dati aggiornati.
-
-- "Cerca Stazioni Attive (POTA)": mostra chi sta trasmettendo adesso.
-  Scegli banda e modo dal menu, poi clicca il bottone.
-
-- "Controlla Ora": genera un alert sulle condizioni di propagazione.
-
-- "Chiedi Consiglio all'IA": ti dà consigli personalizzati basati sui
-  tuoi log e sui dati solari. Funziona senza installare nulla di extra.
+Accanto al nominativo trovi anche "QTH: Imposta locator". Clicca sulla scritta,
+inserisci il tuo locator Maidenhead di 4 o 6 caratteri (per esempio JN65 o
+JN65ER) e premi INVIO. Il programma ricava localmente latitudine e longitudine;
+non usa servizi di geolocalizzazione e non invia il QTH a NOAA o POTA.
 
 
 ================================================================================
-6. SPEGNERE IL PROGRAMMA
+5. REGISTRARE E CONSULTARE I QSO
 ================================================================================
 
-Quando hai finito:
-1. Chiudi la scheda del browser (o tutto il browser)
-2. Clicca sulla finestra nera e premi un tasto qualsiasi, oppure
-   chiudi la finestra con la X
+Nel riquadro "Nuovo QSO" inserisci la frequenza in MHz (per esempio 14.250),
+modo, nominativo, RST ricevuto, locator e note, quindi premi "Salva QSO".
 
-I tuoi dati sono già salvati — non rischi di perdere nulla.
+La dashboard mostra soltanto gli ultimi 10 QSO inseriti a mano. I record
+tecnici NOAA e gli alert non vengono mescolati al registro visibile.
+
+Per consultare tutto il registro clicca "Apri storico completo". Puoi:
+- cercare per nominativo, locator o testo delle note;
+- filtrare per banda e modo;
+- scorrere 50 QSO per pagina;
+- modificare o eliminare un QSO manuale.
+
+Sotto la tabella trovi anche:
+- "Esporta CSV", adatto a fogli di calcolo e archiviazione;
+- "Esporta ADIF", per importare i QSO nei software radioamatoriali;
+- "Backup database", che scarica una copia completa e coerente del database.
 
 
 ================================================================================
-7. BACKUP DEI TUOI LOG
+6. DATI IN TEMPO REALE E I DUE CONTROLLI
 ================================================================================
 
-Tutti i tuoi QSO sono salvati nel file:
+"Aggiorna Dati Solar (NOAA)"
+- legge K-index e Solar Flux Index dai servizi NOAA SWPC;
+- salva un nuovo record tecnico nel database; clic ripetuti sullo stesso dato
+  appena letto dalla cache non creano duplicati;
+- il record non compare tra gli ultimi QSO né nello storico QSO.
+
+"Cerca Stazioni Attive (POTA)"
+- usa la banda e il modo selezionati;
+- mostra fino a 10 spot correnti corrispondenti;
+- se il QTH è impostato, mostra distanza, azimut e direzione per gli spot che
+  contengono un locator valido;
+- non salva QSO nel registro.
+
+"Controlla Ora (Genera Alert)"
+- legge direttamente NOAA e POTA su tutte le bande;
+- usa il QTH per calcolare i riferimenti geografici disponibili;
+- non usa i QSO inseriti a mano;
+- se trova elementi sufficienti genera e salva un alert tecnico, separato dal
+  registro QSO; con condizioni non rilevanti può non creare alcun alert.
+
+"Chiedi Consiglio all'IA (usa anche il tuo storico)"
+- legge direttamente NOAA e POTA su tutte le bande;
+- usa il QTH e le distanze POTA calcolate localmente;
+- considera tutti i QSO manuali presenti nel database, senza un limite
+  temporale o numerico, per calcolare statistiche di bande e modi;
+- mostra il consiglio nella pagina ma non lo salva come QSO.
+
+Non è necessario premere prima i pulsanti NOAA o POTA: i due controlli
+eseguono le proprie letture aggiornate quando vengono cliccati.
+
+Per ridurre chiamate ripetute, NOAA e POTA usano una breve cache locale. Se un
+servizio diventa temporaneamente irraggiungibile, il programma può mostrare
+l'ultimo dato valido indicandolo chiaramente come dato in cache.
+
+
+================================================================================
+7. RAG, QWEN E CONSIGLIO LOCALE (WORK IN PROGRESS)
+================================================================================
+
+Il percorso usato dai due controlli è:
+
+1. swlbot RAG locale con il corpus tecnico;
+2. se il RAG non risponde, Qwen locale senza RAG;
+3. se anche Qwen non risponde, motore deterministico integrato.
+
+L'eseguibile NON contiene Ollama, Qwen, il corpus o il server RAG. Senza questi
+componenti il programma continua a funzionare e mostra "CONSIGLIO LOCALE".
+
+"CONSIGLIO QWEN SENZA RAG" significa che Qwen è attivo ma non ha consultato
+il corpus tecnico. L'avviso è intenzionale: la risposta è meno verificabile.
+
+L'integrazione con il modello linguistico locale dell'autore è sperimentale e
+in fase di sviluppo. Controlla sempre il consiglio confrontandolo con K-index,
+SFI, spot POTA reali e segnali effettivamente ricevuti.
+
+Privacy: gli endpoint predefiniti di RAG e Qwen usano localhost. Se un utente
+li configura verso un server remoto, il riepilogo operativo inviato al modello
+può comprendere anche QTH, statistiche per banda/modo e dati NOAA/POTA. I singoli QSO
+non vengono inclusi nel prompt della versione attuale.
+
+
+================================================================================
+8. BACKUP DEI LOG
+================================================================================
+
+Nelle nuove installazioni il database si trova in:
 
 %LOCALAPPDATA%\ConsigliereDiStazione\swl_logs.db
 
-Per aprire velocemente la cartella, premi WIN+R, incolla:
-%LOCALAPPDATA%\ConsigliereDiStazione
-e premi Invio.
+Premi WIN+R, incolla %LOCALAPPDATA%\ConsigliereDiStazione e premi INVIO.
 
-Compatibilità: se una versione precedente ha già creato "swl_logs.db"
-accanto a ConsigliereDiStazione.exe, il programma continua a usare quel
-file. In questo modo, dopo l'aggiornamento, i vecchi QSO restano visibili.
+Compatibilità con versioni precedenti: se esiste già un file swl_logs.db
+accanto all'eseguibile, il programma continua a usare quello. Controlla quindi
+prima la cartella dell'eseguibile e poi quella in LOCALAPPDATA.
 
-Per fare un backup:
-1. Copia quel file su una chiavetta USB o in un'altra cartella
-2. Fallo ogni tanto, specialmente dopo sessioni importanti
+Il metodo più semplice è cliccare "Backup database" nella pagina: la copia è
+coerente anche mentre il programma è aperto. Puoi inoltre chiudere il programma
+e copiare swl_logs.db su una chiavetta o in un'altra cartella. Per il ripristino
+sostituisci il database, sempre a programma chiuso, nella posizione usata
+dall'installazione.
 
-Per ripristinare i log su un altro computer:
-1. Avvia e chiudi una volta il programma sul nuovo PC
-2. Apri %LOCALAPPDATA%\ConsigliereDiStazione
-3. Sostituisci swl_logs.db con la copia di backup
-4. Riavvia il programma: troverai tutti i tuoi contatti
+CSV e ADIF contengono soltanto i QSO manuali. Il backup completo contiene anche
+impostazioni, aggiornamenti NOAA e alert tecnici.
 
 
 ================================================================================
-8. PROBLEMI COMUNI
+9. PROBLEMI COMUNI
 ================================================================================
 
-La pagina non si apre nel browser:
-- Controlla che la finestra nera sia ancora aperta
-- Prova ad aprire il browser manualmente e scrivi: localhost:8080
+La pagina non si apre:
+- controlla che la finestra nera sia ancora aperta;
+- prova http://localhost:8080;
+- la porta 8080 potrebbe essere già occupata: chiudi l'altro programma o
+  riavvia il computer.
 
-I dati NOAA non arrivano:
-- Verifica che il computer sia connesso a internet
-- Clicca il bottone "Test" accanto a "NOAA Status"
-- Se il problema persiste, aspetta qualche minuto e riprova
+I dati NOAA o POTA non arrivano:
+- verifica la connessione Internet;
+- usa "Test" accanto a "NOAA Status" per controllare NOAA;
+- i servizi pubblici potrebbero essere temporaneamente indisponibili.
 
-Il programma si apre e si chiude subito:
-- La porta 8080 potrebbe essere già usata da un altro programma
-- Prova a riavviare il computer e rilanciare il Consigliere
+Compare "CONSIGLIO LOCALE":
+- il server RAG e Qwen/Ollama non sono raggiungibili;
+- il testo è stato calcolato dalle regole usando NOAA, POTA e statistiche del
+  registro; va comunque verificato con i segnali reali.
 
-Windows continua a bloccare il file ad ogni avvio:
-- Sposta l'exe in una cartella fissa (es. C:\ConsigliereDiStazione\)
-- Clicca con il tasto destro sull'exe → Proprietà → in fondo
-  spunta "Sblocca" → OK
+Compare "CONSIGLIO QWEN SENZA RAG":
+- Ollama e Qwen rispondono, ma il corpus tecnico RAG non è disponibile;
+- avvia swlbot RAG sulla porta 8081 per riattivare il retrieval.
 
 
 ================================================================================
 73 de I6502TR
 
-Per aggiornamenti: https://github.com/111blackeagle111/consigliere-di-stazione
+Aggiornamenti: https://github.com/111blackeagle111/consigliere-di-stazione
 ================================================================================

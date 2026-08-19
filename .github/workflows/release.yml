@@ -1,0 +1,63 @@
+name: Create Windows release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v4
+
+      - name: Verify release version
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          $tag = $env:GITHUB_REF_NAME.TrimStart('v')
+          if ($version.EndsWith('-dev')) {
+            throw "VERSION is still marked as development: $version"
+          }
+          if ($version -ne $tag) {
+            throw "Tag v$tag does not match VERSION $version"
+          }
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller
+
+      - name: Build Windows executable
+        run: pyinstaller build/consigliere.spec --clean --noconfirm
+
+      - name: Create SHA-256 checksum
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "dist/ConsigliereDiStazione.exe")) {
+            throw "Windows executable was not produced"
+          }
+          $hash = (Get-FileHash "dist/ConsigliereDiStazione.exe" -Algorithm SHA256).Hash.ToLower()
+          "$hash  ConsigliereDiStazione.exe" | Set-Content "dist/ConsigliereDiStazione.exe.sha256" -Encoding ascii
+
+      - name: Publish GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create $env:GITHUB_REF_NAME `
+            "dist/ConsigliereDiStazione.exe" `
+            "dist/ConsigliereDiStazione.exe.sha256" `
+            "docs/GUIDA_WINDOWS.txt" `
+            "docs/MANUALE_UTENTE.txt" `
+            --verify-tag --generate-notes --title "Consigliere di Stazione $env:GITHUB_REF_NAME"

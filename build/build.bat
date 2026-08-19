@@ -1,8 +1,9 @@
 @echo off
 chcp 65001 >nul
+set /p APP_VERSION=<"%~dp0\..\VERSION"
 echo.
 echo ================================================
-echo   Build Consigliere di Stazione v1.0
+echo   Build Consigliere di Stazione v%APP_VERSION%
 echo   di I6502TR
 echo ================================================
 echo.

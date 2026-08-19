@@ -8,6 +8,7 @@ on:
       - "src/**"
       - "templates/**"
       - "requirements.txt"
+      - "VERSION"
       - "build/**"
       - ".github/workflows/build-windows.yml"
   workflow_dispatch:
