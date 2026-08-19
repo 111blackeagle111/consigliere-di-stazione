@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — 1.1.0-dev
+## 1.1.0 — 2026-08-19
 
 - Analisi AI dell'intero storico tramite aggregazioni SQLite, insieme a NOAA e POTA su tutte le bande.
 - Fallback espliciti: swlbot RAG, Qwen locale senza RAG, regole deterministiche.
@@ -14,5 +14,3 @@
 - Compatibilità conservata con i database delle versioni precedenti.
 - README, pagina dei requisiti, guida Windows, manuale e schermate aggiornati; download Windows documentato tramite GitHub Releases con verifica SHA-256.
 - Workflow di release predisposto per compilare l'eseguibile Windows e pubblicare il checksum soltanto da un tag coerente con `VERSION`.
-
-La versione definitiva e la data verranno assegnate soltanto dopo il collaudo finale.
