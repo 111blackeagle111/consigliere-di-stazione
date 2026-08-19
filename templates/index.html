@@ -279,10 +279,63 @@
             background: rgba(255,255,255,0.3) !important;
             transform: translateY(-1px) !important;
         }
+        .btn-history {
+            background: #5dade2;
+            color: white;
+            margin-top: 16px;
+        }
+        .history-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            background: rgba(6, 18, 45, 0.88);
+            padding: 20px;
+            align-items: center;
+            justify-content: center;
+        }
+        .history-panel {
+            width: min(1300px, 96vw);
+            max-height: 92vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            background: linear-gradient(145deg, #284b82, #1d3968);
+            border: 1px solid rgba(255,255,255,0.25);
+            border-radius: 16px;
+            box-shadow: 0 20px 70px rgba(0,0,0,0.5);
+        }
+        .history-header, .history-footer {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px 20px;
+        }
+        .history-header h2 { margin: 0; color: #ffd700; }
+        .history-close, .history-page-btn {
+            width: auto;
+            margin: 0;
+            padding: 8px 15px;
+        }
+        .history-close { background: #ff6b6b; color: white; }
+        .history-filters {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr auto;
+            gap: 10px;
+            padding: 0 20px 12px;
+        }
+        .history-filters input, .history-filters select, .history-filters button { margin: 0; }
+        .history-filters button { width: auto; padding: 10px 18px; }
+        .history-table-wrap { overflow: auto; padding: 0 20px; }
+        #historyTable { min-width: 950px; }
+        #historyTable td { max-width: 340px; }
+        #historyEmpty { text-align: center; padding: 30px; opacity: 0.75; display: none; }
         @media (max-width: 968px) {
             .grid {
                 grid-template-columns: 1fr;
             }
+            .history-filters { grid-template-columns: 1fr 1fr; }
         }
     </style>
 </head>
@@ -384,7 +437,7 @@
                 <div id="dx-response"></div>
                 
                 <button class="btn-ai" onclick="askAI()">
-                    🤖 Chiedi Consiglio all'IA (Analizza tutto)
+                    🤖 Chiedi Consiglio all'IA (usa anche il tuo storico)
                 </button>
                 <div id="ai-response"></div>
             </div>
@@ -433,10 +486,137 @@
                 <p style="text-align: center; opacity: 0.7; padding: 20px;">Nessun QSO registrato. Inizia ad ascoltare!</p>
                 {% endif %}
             </div>
+            <button class="btn-history" onclick="openHistory()">📚 Apri storico completo</button>
+        </div>
+    </div>
+
+    <div id="historyModal" class="history-modal" role="dialog" aria-modal="true" aria-labelledby="historyTitle">
+        <div class="history-panel">
+            <div class="history-header">
+                <h2 id="historyTitle">📚 Storico completo QSO</h2>
+                <button class="history-close" onclick="closeHistory()" aria-label="Chiudi storico">✕ Chiudi</button>
+            </div>
+            <div class="history-filters">
+                <input id="historySearch" type="search" placeholder="Cerca nominativo, locator o note..." onkeydown="if(event.key==='Enter') applyHistoryFilters()">
+                <select id="historyBand">
+                    <option value="">Tutte le bande</option>
+                    <option>160m</option><option>80m</option><option>60m</option><option>40m</option>
+                    <option>30m</option><option>20m</option><option>17m</option><option>15m</option>
+                    <option>12m</option><option>10m</option><option>6m</option>
+                </select>
+                <select id="historyMode">
+                    <option value="">Tutti i modi</option>
+                    <option>SSB</option><option>CW</option><option>FM</option><option>AM</option>
+                    <option>FT8</option><option>FT4</option><option>PSK31</option><option>RTTY</option><option>JT65</option>
+                </select>
+                <button onclick="applyHistoryFilters()">🔎 Filtra</button>
+            </div>
+            <div class="history-table-wrap">
+                <table id="historyTable">
+                    <thead>
+                        <tr><th>Data/Ora</th><th>Banda</th><th>Frequenza</th><th>Modo</th><th>Nominativo</th><th>RST</th><th>Locator</th><th>Note</th></tr>
+                    </thead>
+                    <tbody id="historyBody"></tbody>
+                </table>
+                <div id="historyEmpty">Nessun QSO corrisponde ai filtri.</div>
+            </div>
+            <div class="history-footer">
+                <button id="historyPrev" class="history-page-btn" onclick="changeHistoryPage(-1)">← Precedenti</button>
+                <span id="historyInfo">Caricamento…</span>
+                <button id="historyNext" class="history-page-btn" onclick="changeHistoryPage(1)">Successivi →</button>
+            </div>
         </div>
     </div>
 
     <script>
+        const historyLimit = 50;
+        let historyOffset = 0;
+        let historyTotal = 0;
+
+        function historyCell(row, value) {
+            const cell = document.createElement('td');
+            cell.textContent = value ?? '-';
+            row.appendChild(cell);
+        }
+
+        async function loadHistory() {
+            const body = document.getElementById('historyBody');
+            const info = document.getElementById('historyInfo');
+            const empty = document.getElementById('historyEmpty');
+            body.replaceChildren();
+            empty.style.display = 'none';
+            info.textContent = 'Caricamento…';
+
+            const params = new URLSearchParams({offset: historyOffset, limit: historyLimit});
+            const search = document.getElementById('historySearch').value.trim();
+            const band = document.getElementById('historyBand').value;
+            const mode = document.getElementById('historyMode').value;
+            if (search) params.set('search', search);
+            if (band) params.set('band', band);
+            if (mode) params.set('mode', mode);
+
+            try {
+                const response = await fetch('/qso/history?' + params.toString());
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                const data = await response.json();
+                historyTotal = data.total;
+
+                data.items.forEach(item => {
+                    const row = document.createElement('tr');
+                    const timestamp = item.timestamp ? new Date(item.timestamp).toLocaleString('it-IT') : '-';
+                    historyCell(row, timestamp);
+                    historyCell(row, item.band);
+                    historyCell(row, Number(item.frequency).toFixed(3) + ' MHz');
+                    historyCell(row, item.mode);
+                    historyCell(row, item.call_sign);
+                    historyCell(row, item.rst_received || '-');
+                    historyCell(row, item.locator || '-');
+                    historyCell(row, item.notes || '-');
+                    body.appendChild(row);
+                });
+
+                const first = historyTotal ? historyOffset + 1 : 0;
+                const last = Math.min(historyOffset + data.items.length, historyTotal);
+                info.textContent = `${first}–${last} di ${historyTotal} QSO`;
+                empty.style.display = data.items.length ? 'none' : 'block';
+                document.getElementById('historyPrev').disabled = historyOffset === 0;
+                document.getElementById('historyNext').disabled = historyOffset + historyLimit >= historyTotal;
+            } catch (error) {
+                info.textContent = 'Errore nel caricamento dello storico';
+                empty.textContent = error.message;
+                empty.style.display = 'block';
+            }
+        }
+
+        function openHistory() {
+            historyOffset = 0;
+            document.getElementById('historyModal').style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+            loadHistory();
+        }
+
+        function closeHistory() {
+            document.getElementById('historyModal').style.display = 'none';
+            document.body.style.overflow = '';
+        }
+
+        function applyHistoryFilters() {
+            historyOffset = 0;
+            loadHistory();
+        }
+
+        function changeHistoryPage(direction) {
+            historyOffset = Math.max(0, historyOffset + direction * historyLimit);
+            loadHistory();
+        }
+
+        document.getElementById('historyModal').addEventListener('click', event => {
+            if (event.target.id === 'historyModal') closeHistory();
+        });
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') closeHistory();
+        });
+
         // Test NOAA Status
         async function testNOAA() {
             const dot = document.getElementById('noaa-dot');
@@ -481,7 +661,12 @@
                 const d = await r.json();
                 
                 if (d.status === 'alert_generated') {
-                    resp.innerHTML = `✅ <strong>Alert Generato!</strong><br><br>🎯 ${d.alert.message}<br><br><em>Score: ${d.evaluation.score}/100 - Livello: ${d.evaluation.level}</em>`;
+                    const sourceWarning = d.alert.source === 'llm-direct'
+                        ? '<br><br>⚠️ <small>RAG non disponibile: alert generato da Qwen senza consultare il corpus tecnico.</small>'
+                        : d.alert.source === 'rules'
+                            ? '<br><br>🧭 <small>RAG e LLM non disponibili: alert calcolato con le regole locali.</small>'
+                            : '';
+                    resp.innerHTML = `✅ <strong>Alert Generato!</strong><br><br>🎯 ${d.alert.message}<br><br><em>Score: ${d.evaluation.score}/100 - Livello: ${d.evaluation.level}</em>${sourceWarning}`;
                 } else if (d.status === 'cached') {
                     resp.innerHTML = `ℹ️ <strong>Alert in cache</strong><br>Già inviato recentemente. Attendi 30 minuti o usa "force=true"`;
                 } else if (d.status === 'quiet') {
@@ -614,15 +799,17 @@
                 if (!data.response || data.response === 'undefined') {
                     resp.innerHTML = '⚠️ <strong>Consiglio non disponibile.</strong><br>Controlla i dati NOAA e riprova.';
                 } else if (data.source === 'rules') {
-                    resp.innerHTML = '🧭 <strong>CONSIGLIO LOCALE:</strong><br><small>Ollama non disponibile: risposta calcolata dai dati NOAA, POTA e dal registro.</small>\n\n' + data.response;
+                    resp.innerHTML = '🧭 <strong>CONSIGLIO LOCALE:</strong><br><small>RAG e LLM non disponibili: risposta calcolata dai dati NOAA, POTA e dal registro.</small>\n\n' + data.response;
+                } else if (data.source === 'llm-direct') {
+                    resp.innerHTML = '⚠️ <strong>CONSIGLIO QWEN SENZA RAG:</strong><br><small>Il corpus tecnico non è disponibile: risposta generata soltanto dai dati correnti e quindi meno verificabile.</small>\n\n' + data.response;
                 } else {
-                    resp.innerHTML = '🎯 <strong>CONSIGLI AI:</strong>\n\n' + data.response;
+                    resp.innerHTML = '🎯 <strong>CONSIGLI SWLBOT RAG:</strong>\n\n' + data.response;
                 }
             } catch (e) {
                 resp.innerHTML = '❌ Errore di connessione: ' + e.message;
             } finally {
                 btn.disabled = false;
-                btn.textContent = '🤖 Chiedi Consiglio all\'IA';
+                btn.textContent = '🤖 Chiedi Consiglio all\'IA (usa anche il tuo storico)';
             }
         }
 

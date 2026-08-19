@@ -28,7 +28,7 @@ Tasti grandi, colori che si leggono con qualsiasi luce, layout che non richiede 
 
 **Dati NOAA** — K-index e Solar Flux Index aggiornati con un click. Puoi confrontare un ascolto difficile di tre giorni fa con le condizioni solari di quel momento esatto.
 
-**Il Consigliere** — analizza localmente le statistiche dei tuoi log, prende i dati NOAA e l'attività POTA e ti dice dove e quando ascoltare. Usa per impostazione predefinita il modello SWL specializzato pubblicato su Ollama. Se Ollama non è disponibile, passa automaticamente al motore deterministico basato sui dati reali.
+**Il Consigliere** — analizza localmente le statistiche dei tuoi log, prende i dati NOAA e l'attività POTA e ti dice dove e quando ascoltare. Usa il servizio locale swlbot RAG, che unisce i dati correnti al corpus tecnico del blog. Se il RAG non è disponibile prova Qwen locale senza retrieval, mostrando un avviso; se anche Qwen non risponde passa al motore deterministico.
 
 **Stazioni attive (POTA)** — chi sta trasmettendo adesso, su quale banda, in quale parco. Filtrabile per banda e modo.
 
@@ -38,7 +38,7 @@ Tasti grandi, colori che si leggono con qualsiasi luce, layout che non richiede 
 
 Non c'è un server. Non c'è un account. Non c'è niente da pagare.
 
-I QSO finiscono in un file SQLite sul tuo disco e non vengono inclusi nelle richieste NOAA o POTA. Le uniche comunicazioni esterne dell'app sono le letture dei dati pubblici NOAA e POTA; l'inferenza AI avviene su `localhost` tramite Ollama.
+I QSO finiscono in un file SQLite sul tuo disco e non vengono inclusi nelle richieste NOAA o POTA. Le uniche comunicazioni esterne dell'app sono le letture dei dati pubblici NOAA e POTA; l'inferenza AI avviene su `localhost` tramite swlbot RAG.
 
 ---
 
@@ -62,42 +62,40 @@ Prima volta? Leggi la **[Guida rapida per Windows](docs/GUIDA_WINDOWS.txt)** —
 ```bash
 git clone https://github.com/111blackeagle111/consigliere-di-stazione.git
 cd consigliere-di-stazione
-pip install -r requirements.txt
-python src/main.py
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+.venv/bin/python src/main.py
 ```
 
-Se vuoi il Consigliere AI con Ollama:
+Per usare i consigli AI, avvia prima swlbot RAG sulla porta 8081:
 
 ```bash
-curl -fsSL https://ollama.com/install.sh | sh
-ollama pull amaccafeo/swlbot:latest
+cd ../swl-rag
+python server.py
 ```
 
-🇮🇹 **Modello consigliato:** [`amaccafeo/swlbot`](https://ollama.com/amaccafeo/swlbot) — modello fine-tuned in italiano, ottimizzato per il dominio radioamatoriale (Qwen2 3.1B, Q4_K_M, ~1.9 GB).
+In un secondo terminale avvia l'applicazione:
+
+```bash
+cd consigliere-di-stazione
+.venv/bin/python src/main.py
+```
 
 📋 **Requisiti:**
 - **RAM:** 4 GB minimi, 8 GB consigliati
-- **Disco:** ~2 GB liberi
+- **Disco:** spazio sufficiente per Ollama, il modello e l'indice ChromaDB
 - **Testato su:** PC x86_64, Raspberry Pi 4 (4 GB+) e Raspberry Pi 5
-
-Il modello specializzato è quello usato automaticamente dall'app. La richiesta imposta un contesto operativo di 4.096 token, configurabile tramite `OLLAMA_NUM_CTX`.
-
-In alternativa, puoi usare un modello generico (non specializzato):
-
-```bash
-ollama pull llama3.2:3b
-OLLAMA_MODEL=llama3.2:3b python src/main.py
-```
 
 Le variabili disponibili sono:
 
-- `OLLAMA_MODEL`: modello da usare;
-- `OLLAMA_URL`: endpoint `/api/generate` di Ollama;
-- `OLLAMA_NUM_CTX`: contesto effettivo della richiesta, `4096` per impostazione predefinita;
-- `OLLAMA_TIMEOUT`: timeout in secondi, `60` per impostazione predefinita;
+- `SWLBOT_RAG_URL`: endpoint del servizio, predefinito `http://127.0.0.1:8081/api/advice`;
+- `SWLBOT_RAG_TIMEOUT`: timeout in secondi, `90` per impostazione predefinita;
+- `DIRECT_LLM_URL`: endpoint Ollama diretto, predefinito `http://127.0.0.1:11434/api/chat`;
+- `DIRECT_LLM_MODEL`: modello di fallback, predefinito `qwen3.5:4b`;
+- `DIRECT_LLM_TIMEOUT`: timeout del fallback diretto, `90` secondi;
 - `CONSIGLIERE_DATA_DIR`: directory personalizzata per `swl_logs.db`.
 
-Senza Ollama funziona lo stesso: l'interfaccia segnala chiaramente che il consiglio è stato calcolato dal motore locale a regole.
+Senza swlbot RAG l'app prova Qwen direttamente e mostra **CONSIGLIO QWEN SENZA RAG**. Se anche Ollama non è disponibile, mostra **CONSIGLIO LOCALE** calcolato con le regole.
 
 ## 💾 Database e architettura
 

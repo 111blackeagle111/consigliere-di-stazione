@@ -60,9 +60,9 @@ def get_data_path() -> Path:
 from fastapi import FastAPI, Depends, Request, Form, BackgroundTasks
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import StreamingResponse
-from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, Text
+from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, Text, or_
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import requests
 import json
 import logging
@@ -148,32 +148,90 @@ def get_band(freq_mhz: float) -> str:
             return name
     return f"{freq_mhz:.3f}MHz"
 
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "amaccafeo/swlbot:latest")
-OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "4096"))
-OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "60"))
+SWLBOT_RAG_URL = os.getenv("SWLBOT_RAG_URL", "http://127.0.0.1:8081/api/advice")
+SWLBOT_RAG_TIMEOUT = float(os.getenv("SWLBOT_RAG_TIMEOUT", "90"))
+DIRECT_LLM_URL = os.getenv("DIRECT_LLM_URL", "http://127.0.0.1:11434/api/chat")
+DIRECT_LLM_MODEL = os.getenv("DIRECT_LLM_MODEL", "qwen3.5:4b")
+DIRECT_LLM_TIMEOUT = float(os.getenv("DIRECT_LLM_TIMEOUT", "90"))
 
 
-def ask_ai(prompt: str) -> Optional[str]:
+def ask_rag(instruction: str, current_data: str) -> Optional[str]:
     try:
         response = requests.post(
-            OLLAMA_URL,
+            SWLBOT_RAG_URL,
             json={
-                "model": OLLAMA_MODEL,
-                "prompt": prompt,
-                "stream": False,
-                "options": {"num_ctx": OLLAMA_NUM_CTX},
+                "instruction": instruction,
+                "current_data": current_data,
             },
-            timeout=OLLAMA_TIMEOUT,
+            timeout=SWLBOT_RAG_TIMEOUT,
         )
         response.raise_for_status()
         response_text = response.json().get("response")
         if not isinstance(response_text, str) or not response_text.strip():
-            raise ValueError("risposta Ollama vuota o non valida")
+            raise ValueError("risposta swlbot RAG vuota o non valida")
         return response_text.strip()
     except (requests.RequestException, ValueError, TypeError) as exc:
-        logger.warning("Ollama non disponibile: %s", exc)
+        logger.warning("swlbot RAG non disponibile: %s", exc)
         return None
+
+
+def ask_direct_llm(instruction: str, current_data: str) -> Optional[str]:
+    """Fallback locale senza retrieval: riformula le regole, non crea analisi nuove."""
+    system = (
+        "Sei un redattore tecnico italiano. Devi soltanto riformulare la VALUTAZIONE "
+        "DETERMINISTICA fornita dall'app, senza aggiungere nuove conclusioni. Non introdurre "
+        "bande, frequenze, stazioni, aperture, direzioni, orari, strumenti o relazioni causali "
+        "che non siano gia' scritti nella valutazione. Non dedurre rumore dalla quantita' di "
+        "spot e non scambiare le bande storicamente usate dall'operatore per attivita' radio "
+        "corrente. Non presumere che l'utente trasmetta: parla di ascolto salvo indicazione "
+        "esplicita contraria. Se la valutazione e' insufficiente, dichiaralo. Segui soltanto i vincoli "
+        "di lunghezza e stile dell'istruzione."
+    )
+    marker = "VALUTAZIONE DETERMINISTICA DELL'APP (non contraddire):"
+    _, separator, deterministic_guidance = current_data.partition(marker)
+    if separator:
+        source_text = deterministic_guidance.strip()
+    else:
+        source_text = "Dati insufficienti per formulare una valutazione deterministica."
+    prompt = (
+        f"VINCOLI DI STILE:\n{instruction}\n\n"
+        f"VALUTAZIONE DETERMINISTICA DA RIFORMULARE:\n{source_text}"
+    )
+    try:
+        response = requests.post(
+            DIRECT_LLM_URL,
+            json={
+                "model": DIRECT_LLM_MODEL,
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": prompt},
+                ],
+                "stream": False,
+                "think": False,
+                "options": {"temperature": 0, "num_predict": 300},
+            },
+            timeout=DIRECT_LLM_TIMEOUT,
+        )
+        response.raise_for_status()
+        response_text = response.json().get("message", {}).get("content")
+        if not isinstance(response_text, str) or not response_text.strip():
+            raise ValueError("risposta LLM diretto vuota o non valida")
+        return response_text.strip()
+    except (requests.RequestException, ValueError, TypeError) as exc:
+        logger.warning("LLM diretto non disponibile: %s", exc)
+        return None
+
+
+def ask_ai(instruction: str, current_data: str) -> tuple[Optional[str], str]:
+    rag_response = ask_rag(instruction, current_data)
+    if rag_response:
+        return rag_response, "swlbot-rag"
+
+    direct_response = ask_direct_llm(instruction, current_data)
+    if direct_response:
+        return direct_response, "llm-direct"
+
+    return None, "rules"
 
 # ============================================================
 # ALERT SYSTEM
@@ -325,7 +383,7 @@ def get_pota_spots(band="20m", mode="ALL", limit=50):
         
         return {
             "spots": filtered[:limit] if band != "ALL" else [],
-            "count": len(filtered) if band != "ALL" else 0,
+            "count": len(filtered) if band != "ALL" else sum(band_counts.values()),
             "by_band": band_counts,
             "total_spots": len(all_spots),
             "band": band,
@@ -407,9 +465,16 @@ def generate_smart_alert(eval_data: dict, solar_data: dict, pota_data: dict) -> 
     ora = datetime.now().hour
     periodo = "mattina" if 6 <= ora < 12 else "pomeriggio" if 12 <= ora < 18 else "sera" if 18 <= ora < 23 else "notte"
     
-    prompt = f"""Sei un assistente radioamatore. Genera un breve messaggio alert (max 3 frasi) per condizioni propagazione attuali.
-
-DATI:
+    instruction = (
+        "Genera un breve messaggio di alert sulle condizioni di propagazione attuali. "
+        "Usa un tono professionale ma appassionato, italiano corretto, massimo 3 frasi "
+        "e 280 caratteri. Non indicare frequenze o stazioni specifiche che non compaiono "
+        "nei dati correnti."
+    )
+    fallback_parts = eval_data["opportunities"] + eval_data["details"] + eval_data["warnings"]
+    rule_guidance = " ".join(fallback_parts[:3]) or f"Condizioni {level}: score {score}/100."
+    rule_guidance = rule_guidance[:280]
+    current_data = f"""
 - Condizioni: {level.upper()} (score {score}/100)
 - K-index: {eval_data['solar']['k']}
 - SFI: {eval_data['solar']['sfi']}
@@ -419,15 +484,14 @@ DATI:
 - Avvertenze: {', '.join(eval_data['warnings']) if eval_data['warnings'] else 'Nessuna'}
 - Ora: {periodo}
 
-Istruzioni: Tono professionale ma appassionato, italiano corretto, max 280 caratteri."""
+VALUTAZIONE DETERMINISTICA DELL'APP (non contraddire):
+{rule_guidance}
+""".strip()
 
-    ai_response = ask_ai(prompt)
-    source = "ollama"
+    ai_response, source = ask_ai(instruction, current_data)
     if not ai_response:
         source = "rules"
-        fallback_parts = eval_data["opportunities"] + eval_data["details"] + eval_data["warnings"]
-        ai_response = " ".join(fallback_parts[:3]) or f"Condizioni {level}: score {score}/100."
-        ai_response = ai_response[:280]
+        ai_response = rule_guidance
     
     return {
         "message": ai_response.strip(),
@@ -444,7 +508,7 @@ Istruzioni: Tono professionale ma appassionato, italiano corretto, max 280 carat
 
 @app.get("/")
 def dashboard(request: Request, db: Session = Depends(get_db)):
-    logs = db.query(QSO).order_by(QSO.timestamp.desc()).limit(10).all()
+    logs = db.query(QSO).filter(QSO.frequency > 0).order_by(QSO.timestamp.desc()).limit(10).all()
     total = db.query(QSO).filter(QSO.frequency > 0).count()
     
     bands = {}
@@ -463,6 +527,62 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
         "latest_alert": latest_alert.notes if latest_alert else None,
         "callsign": get_callsign(db),
     })
+
+
+@app.get("/qso/history")
+def qso_history(
+    offset: int = 0,
+    limit: int = 50,
+    band: str = "",
+    mode: str = "",
+    search: str = "",
+    db: Session = Depends(get_db),
+):
+    """Storico QSO completo, caricato su richiesta e paginato."""
+    offset = max(0, offset)
+    limit = min(100, max(10, limit))
+    query = db.query(QSO).filter(QSO.frequency > 0)
+
+    band_ranges = {
+        "160m": (1.8, 2.0), "80m": (3.5, 4.0), "60m": (5.3, 5.4),
+        "40m": (7.0, 7.3), "30m": (10.1, 10.15), "20m": (14.0, 14.35),
+        "17m": (18.068, 18.168), "15m": (21.0, 21.45),
+        "12m": (24.89, 24.99), "10m": (28.0, 29.7), "6m": (50.0, 54.0),
+    }
+    if band in band_ranges:
+        minimum, maximum = band_ranges[band]
+        query = query.filter(QSO.frequency >= minimum, QSO.frequency <= maximum)
+    if mode:
+        query = query.filter(QSO.mode == mode.upper())
+    if search.strip():
+        term = f"%{search.strip()}%"
+        query = query.filter(or_(
+            QSO.call_sign.ilike(term),
+            QSO.locator.ilike(term),
+            QSO.notes.ilike(term),
+        ))
+
+    total = query.count()
+    logs = query.order_by(QSO.timestamp.desc()).offset(offset).limit(limit).all()
+    return {
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "items": [
+            {
+                "id": log.id,
+                "timestamp": log.timestamp.isoformat() if log.timestamp else None,
+                "frequency": log.frequency,
+                "band": get_band(log.frequency),
+                "mode": log.mode,
+                "call_sign": log.call_sign,
+                "rst_received": log.rst_received,
+                "locator": log.locator,
+                "notes": log.notes,
+            }
+            for log in logs
+        ],
+    }
 
 @app.post("/add")
 def add_qso(frequency: float = Form(...), mode: str = Form(...), 
@@ -693,41 +813,52 @@ def generate_rule_based_advice(solar: dict, pota: dict, bands: dict, modes: dict
 
     if k is not None:
         if k < 3:
-            consigli.append(f"K-index eccellente ({k:.1f}): propagazione stabile, ottimo per DX sulle bande alte (17m, 15m, 12m, 10m).")
+            consigli.append(f"K-index basso ({k:.1f}): campo geomagnetico quieto; riduce il rischio di disturbi ma, da solo, non determina quali bande siano aperte.")
         elif k < 5:
-            consigli.append(f"K-index discreto ({k:.1f}): propagazione accettabile, preferire 20m e 40m per collegamenti affidabili.")
+            consigli.append(f"K-index moderato ({k:.1f}): condizioni potenzialmente variabili; verificare i segnali e gli spot reali prima di scegliere la banda.")
         else:
-            consigli.append(f"K-index disturbato ({k:.1f}): evitare bande alte, rifugiarsi su 40m e 80m per propagazione più stabile.")
+            consigli.append(f"K-index alto ({k:.1f}): possibili disturbi geomagnetici, soprattutto sui percorsi ad alte latitudini; monitorare i segnali reali.")
 
     if sfi is not None:
         if sfi > 150:
-            consigli.append(f"Solar Flux molto alto ({sfi:.0f}): condizioni eccezionali per le bande da 10m a 20m, provare aperture verso America e Asia.")
+            consigli.append(f"Solar Flux molto alto ({sfi:.0f}): aumenta la probabilità di propagazione sulle bande HF alte, senza garantire aperture o direzioni specifiche.")
         elif sfi > 100:
-            consigli.append(f"Solar Flux buono ({sfi:.0f}): bande da 20m a 10m attive, buone possibilità per il DX intercontinentale.")
+            consigli.append(f"Solar Flux buono ({sfi:.0f}): può favorire le bande da 20m a 10m; confermare l'apertura con segnali e spot correnti.")
         elif sfi > 70:
-            consigli.append(f"Solar Flux nella norma ({sfi:.0f}): puntare su 20m e 40m come bande principali.")
+            consigli.append(f"Solar Flux nella norma ({sfi:.0f}): non indica da solo una banda migliore; confrontare 20m e 40m con i dati correnti.")
         else:
-            consigli.append(f"Solar Flux basso ({sfi:.0f}): ciclo solare in fase discendente, concentrarsi su 40m e 80m specialmente di sera.")
+            consigli.append(f"Solar Flux basso ({sfi:.0f}): le bande HF alte possono essere meno favorite; verificare 40m e 80m senza considerarle garantite.")
 
     pota_count = pota.get("count", 0)
+    selected_band = pota.get("band")
     by_band = pota.get("by_band", {})
     top_bands = sorted(by_band.items(), key=lambda x: x[1], reverse=True)[:2]
-    if top_bands:
+    if pota_count > 0 and selected_band and selected_band != "ALL":
+        consigli.append(
+            f"Sono presenti {pota_count} spot POTA correnti su {selected_band}: "
+            "questa è attività osservata, non una misura della qualità di propagazione o ricezione."
+        )
+    elif top_bands:
         band_str = " e ".join(f"{b[0]} ({b[1]} spot)" for b in top_bands)
-        consigli.append(f"Attività POTA elevata su {band_str}: buon momento per ascoltare attivatori nei parchi.")
+        consigli.append(f"Gli spot POTA correnti risultano più numerosi su {band_str}; usare questi conteggi come indicazione di attività, non di propagazione garantita.")
     elif pota_count == 0 and ora >= 22:
-        consigli.append(f"Ora di {periodo}: attività ridotta, ottimo per ascolto su 40m e 80m nelle bande europee.")
+        consigli.append(f"Ora di {periodo}: nessuno spot POTA trovato nel filtro corrente; il dato non permette di dedurre l'attività sulle altre bande.")
 
     if bands:
         banda_preferita = max(bands, key=bands.get)
-        consigli.append(f"La tua banda preferita è {banda_preferita} ({bands[banda_preferita]} QSO): continua a monitorarla come riferimento personale.")
+        consigli.append(f"Nel tuo storico la banda più registrata è {banda_preferita} ({bands[banda_preferita]} QSO); questo descrive le tue abitudini, non l'attività POTA corrente.")
 
     return "\n".join(f"• {c}" for c in consigli[:3]) if consigli else "Dati insufficienti per generare consigli."
 
 
 @app.get("/ai/analyze")
 def ai_analyze(db: Session = Depends(get_db)):
-    logs = db.query(QSO).filter(QSO.frequency > 0).order_by(QSO.timestamp.desc()).limit(20).all()
+    logs = (
+        db.query(QSO)
+        .filter(QSO.frequency > 0)
+        .order_by(QSO.timestamp.desc())
+        .all()
+    )
 
     modes = {}
     bands = {}
@@ -737,36 +868,50 @@ def ai_analyze(db: Session = Depends(get_db)):
         bands[band] = bands.get(band, 0) + 1
 
     solar = get_solar_data()
-    pota = get_pota_spots("20m", "", 5)
+    # Una sola lettura dell'endpoint POTA contiene gli spot di tutte le frequenze.
+    # Li raggruppiamo per banda per dare al consiglio una vista completa, senza
+    # ripetere la stessa chiamata HTTP una volta per ogni banda.
+    pota = get_pota_spots("ALL", "ALL", 0)
+    pota_by_band = pota.get("by_band", {})
+    pota_top_bands = sorted(pota_by_band.items(), key=lambda item: item[1], reverse=True)[:5]
 
-    ora = datetime.utcnow().hour
+    ora = datetime.now(timezone.utc).hour
     periodo = "mattina" if 6 <= ora < 12 else "pomeriggio" if 12 <= ora < 18 else "sera" if 18 <= ora < 22 else "notte"
+    rule_guidance = generate_rule_based_advice(solar, pota, bands, modes, ora)
 
-    prompt = f"""Sei un consulente radioamatore esperto (IV3ZEW). Analizza questi dati operativi reali:
-
+    instruction = (
+        "Analizza i dati operativi reali e fornisci 3 consigli pratici specifici per "
+        "queste condizioni. Massimo 4 righe, tono professionale ma diretto. Non presentare "
+        "frequenze o stazioni tratte dal corpus come se fossero attive adesso."
+    )
+    current_data = f"""
 STATISTICHE OPERATORE:
 - Bande più usate: {bands}
 - Modi preferiti: {modes}
-- QSO recenti: {len(logs)}
+- QSO totali nello storico: {len(logs)}
 
 CONDIZIONI SOLAR (NOAA):
 - K-index: {solar.get('k_index', 'N/A')}
 - SFI: {solar.get('sfi', 'N/A')}
 
-ATTIVITA' POTA (reale):
-- Spot attuali su 20m: {pota.get('count', 0)} stazioni
+ATTIVITA' POTA CORRENTE (tutte le bande):
+- Spot totali con banda riconosciuta: {pota.get('count', 0)}
+- Conteggi reali per banda: {pota_by_band}
+- Bande con più spot: {pota_top_bands}
 
 ORARIO: {periodo} (UTC)
 
-Dammi 3 consigli pratici specifici per queste condizioni. Max 4 righe. Tono professionale ma diretto."""
+VALUTAZIONE DETERMINISTICA DELL'APP (non contraddire):
+{rule_guidance}
+""".strip()
 
-    response_text = ask_ai(prompt)
-    source = "ollama"
+    response_text, source = ask_ai(instruction, current_data)
     if not response_text:
-        response_text = generate_rule_based_advice(solar, pota, bands, modes, ora)
+        response_text = rule_guidance
         source = "rules"
 
-    return {"response": response_text, "source": source, "model": OLLAMA_MODEL if source == "ollama" else None}
+    model = "swlbot-rag" if source == "swlbot-rag" else DIRECT_LLM_MODEL if source == "llm-direct" else None
+    return {"response": response_text, "source": source, "model": model}
 
 @app.get("/settings/callsign")
 def read_callsign(db: Session = Depends(get_db)):

@@ -233,8 +233,8 @@ E ti risponderà con un consiglio scritto in italiano, tipo:
 "Oggi pomeriggio propagazione eccellente sui 20 metri verso Est. 
 Il K-index è stabile a 2. Prova a cercare attivatori POTA sul 14.074 MHz."
 
-Nota: Se hai installato Ollama con il modello SWL consigliato, i consigli vengono
-generati dall'intelligenza artificiale locale. Se Ollama non è installato,
+Nota: Se hai avviato swlbot RAG sulla porta 8081, i consigli vengono generati
+dall'intelligenza artificiale locale usando anche il corpus tecnico. Se il RAG non è avviato,
 il Consigliere funziona lo stesso: i consigli vengono calcolati
 automaticamente dai dati NOAA e dall'attività POTA.
 
@@ -251,9 +251,14 @@ automaticamente dai dati NOAA e dall'attività POTA.
 - Prova a ricaricare la pagina premendo F5
 
 ...il Consigliere mostra "CONSIGLIO LOCALE"
-- Ollama non è disponibile oppure il modello non è installato.
+- swlbot RAG e il fallback Qwen diretto non sono disponibili.
 - Il consiglio mostrato è comunque valido: viene calcolato localmente dai
   dati NOAA, dall'attività POTA e dalle statistiche del registro.
+
+...il Consigliere mostra "CONSIGLIO QWEN SENZA RAG"
+- swlbot RAG non è disponibile, ma Ollama e qwen3.5:4b stanno funzionando.
+- La risposta usa i dati correnti ma non consulta il corpus tecnico; per questo
+  viene mostrato un avviso e il consiglio è meno verificabile.
 
 ...i dati NOAA non arrivano
 - Controlla che il computer sia collegato a internet
@@ -276,16 +281,16 @@ automaticamente dai dati NOAA e dall'attività POTA.
 9. APPENDICE PER TECNICI
 ================================================================================
 
-Porta di default: 8080. Se è occupata, modifica l'ultima riga di main.py 
-(cambia port=8080 con un altro numero, es. 8081)
+Porta di default: 8080. Se è occupata, modifica l'ultima riga di main.py
+(cambia port=8080 con un altro numero, es. 8082; la 8081 è riservata a swlbot RAG)
 
 Database: SQLite gestito tramite SQLAlchemy, tabella "qsos".
 Colonne: id, timestamp, frequency, mode, call_sign, rst_received, 
 locator, notes
 
-Modelli AI: compatibile con Ollama; il modello SWL specializzato è il default.
-Configurazione tramite OLLAMA_MODEL, OLLAMA_URL, OLLAMA_NUM_CTX e
-OLLAMA_TIMEOUT. Il contesto operativo predefinito è 4096 token.
+Servizio AI: swlbot RAG, endpoint predefinito http://127.0.0.1:8081/api/advice.
+Configurazione RAG tramite SWLBOT_RAG_URL e SWLBOT_RAG_TIMEOUT.
+Fallback diretto tramite DIRECT_LLM_URL, DIRECT_LLM_MODEL e DIRECT_LLM_TIMEOUT.
 
 Coordinate stazione: Modificabili nel file main.py, variabili LAT e LNG 
 (vedi sezione 2.2 di questo manuale)
