@@ -2,92 +2,88 @@
 
 *Made in Italy by I6502TR*
 
----
+Il Consigliere di Stazione prova a riportare nello shack una figura familiare: il socio esperto che dà un'occhiata al K-index, ascolta cosa succede sulle bande e ti dice se vale la pena fare un tentativo.
 
-## 📻 Cos'è?
+L'applicazione tiene il registro dei QSO, legge i dati solari NOAA e mostra l'attività POTA corrente. Quando chiedi un consiglio, mette insieme questi dati con le statistiche del tuo storico. Il registro rimane in un database SQLite sul tuo computer e non viene inviato a NOAA o POTA.
 
-Il Consigliere di Stazione è quello che avevi in shack prima del computer: il socio esperto che guardava il K-index sul giornale e valutava se valeva la pena provare i 20 metri.
+Non richiede account o abbonamenti. Per usare il registro, consultare NOAA e POTA o ricevere i consigli basati sulle regole non serve alcun servizio cloud.
 
-Fa esattamente quello, ma in digitale. Registra i QSO, scarica i dati solari da NOAA, controlla l'attività POTA in tempo reale su tutte le bande e combina questi dati con le statistiche del tuo intero storico operativo. I dati del registro non vengono inviati a NOAA o POTA.
-
-**Nessun cloud per il registro. Nessun abbonamento. I tuoi log restano nello shack.**
-
----
-
-## 🖼️ L'interfaccia
+## Interfaccia
 
 ![Dashboard del Consigliere di Stazione](docs/screenshot.png)
 
-Tasti grandi, colori che si leggono con qualsiasi luce, layout che non richiede manuale. Se sai accendere un computer, lo usi.
-
-Lo storico completo viene caricato soltanto quando serve, con ricerca, filtri per banda e modo e 50 QSO per pagina:
+La dashboard raccoglie il quaderno di bordo e i dati operativi senza nascondere le funzioni principali nei menu. Gli ultimi dieci QSO rimangono subito visibili; il resto del registro si apre quando serve.
 
 ![Storico completo QSO con filtri](docs/history.png)
 
+Nello storico completo puoi cercare nominativi, locator e note, filtrare per banda o modo e scorrere 50 QSO per pagina.
+
 *Le schermate usano dati sintetici marcati `[DEMO-6M]`; non rappresentano collegamenti reali.*
 
----
+## Cosa puoi fare
 
-## ✨ Cosa fa
+### Tenere il registro
 
-**Quaderno di bordo** — frequenza, modo, nominativo, RST, locatore QTH, note libere. La banda la calcola da sola. Ogni contatto ha il suo timestamp. Nominativo e locator Maidenhead dell'operatore si impostano cliccando direttamente sulle scritte in cima alla pagina — niente file da editare.
+Per ogni QSO puoi salvare frequenza, modo, nominativo, RST ricevuto, locator QTH e note. La banda viene ricavata automaticamente dalla frequenza. Nominativo e locator Maidenhead dell'operatore si impostano cliccando sulle rispettive scritte in cima alla pagina.
 
-**Storico completo** — gli ultimi dieci QSO restano visibili nella dashboard; l'archivio completo si apre su richiesta e permette di cercare nominativi, locator e note, filtrare banda e modo, scorrere 50 record per pagina, modificare ed eliminare i QSO manuali. I record tecnici NOAA e gli alert non vengono mescolati ai QSO.
+Lo storico comprende tutti i QSO inseriti a mano, senza limiti temporali o numerici. Puoi modificarli o eliminarli; i record tecnici creati dagli aggiornamenti NOAA e dagli alert restano separati e non compaiono nel registro operativo.
 
-**Esportazioni e backup** — dalla dashboard puoi scaricare tutti i QSO manuali in CSV o ADIF e creare una copia coerente del database SQLite anche mentre l'app è aperta. Le date restano locali nell'interfaccia; il CSV riporta sia ora locale sia UTC, mentre ADIF usa UTC.
+Dalla dashboard puoi esportare tutti i QSO manuali in CSV o ADIF. Puoi anche scaricare un backup coerente dell'intero database SQLite mentre l'applicazione è aperta.
 
-**Dati NOAA** — K-index e Solar Flux Index aggiornati con un click. Ogni nuovo aggiornamento manuale viene conservato nel database come record tecnico, separato dai QSO visibili. NOAA e POTA usano cache locali di 60 e 30 secondi; l'interfaccia indica ora del dato, età e stato della cache e può mostrare l'ultimo dato valido se il servizio cade.
+### Consultare NOAA e POTA
 
-**Il Consigliere** — include **tutti** i QSO manuali, senza limiti temporali o numerici, facendo calcolare a SQLite i conteggi per banda e modo senza caricare l'intero registro in memoria. Queste statistiche aggregate vengono unite a K-index, SFI e attività POTA reale su tutte le bande. Usa il servizio locale swlbot RAG, con fallback a Qwen diretto e infine alle regole locali.
+Il pulsante NOAA legge K-index e Solar Flux Index. Gli aggiornamenti richiesti manualmente vengono conservati nel database come record tecnici, senza confonderli con i QSO.
 
-> **Work in progress:** l'integrazione con il modello linguistico locale dell'autore è ancora sperimentale e in fase di sviluppo. I consigli generati dall'IA vanno quindi verificati confrontandoli con i dati NOAA, POTA e con la propria esperienza operativa.
+La ricerca POTA mostra fino a dieci spot correnti filtrabili per banda e modo, con nominativo, frequenza, parco e locator. Se hai impostato il tuo QTH, per gli spot dotati di locator vengono calcolati localmente distanza, azimut e direzione.
 
-**Stazioni attive (POTA)** — mostra nominativo, frequenza, parco e locator degli spot correnti. Se hai impostato il QTH, calcola localmente distanza, azimut e direzione per gli spot dotati di locator. La ricerca è filtrabile per banda e modo e visualizza fino a 10 risultati.
+Per evitare richieste duplicate, NOAA usa una cache di 60 secondi e POTA una di 30. L'interfaccia indica l'orario del dato e l'età della cache. Se uno dei servizi smette temporaneamente di rispondere, l'app può recuperare l'ultimo valore valido e lo segnala chiaramente.
 
-### I due controlli AI
+### Chiedere un consiglio
 
-- **Controlla Ora (Genera Alert)** ottiene NOAA e POTA su tutte le bande, riutilizzando la cache breve quando valida, usa il QTH per interpretare gli spot localizzati e valuta gli indicatori operativi correnti. Se ci sono elementi sufficienti genera e salva un alert tecnico; non usa lo storico QSO.
-- **Chiedi Consiglio all'IA (usa anche il tuo storico)** ottiene NOAA e POTA su tutte le bande, usa le distanze calcolate dal QTH e le statistiche aggregate di tutti i QSO manuali. Il consiglio non viene salvato come QSO.
+I due pulsanti AI hanno compiti diversi.
 
-Il percorso di generazione è sempre locale:
+- **Controlla Ora (Genera Alert)** legge NOAA e l'attività POTA su tutte le bande, usa il QTH per interpretare gli spot localizzati e valuta soltanto la situazione corrente. Se trova elementi utili, genera e salva un alert tecnico. Non consulta lo storico QSO.
 
-1. **swlbot RAG + modello locale** con il corpus tecnico;
-2. se il RAG non risponde, **Qwen diretto** vincolato alla valutazione deterministica, con un avviso visibile;
-3. se anche Ollama non risponde, **regole locali**;
-4. se una risposta AI contiene elementi non supportati, viene scartata: si passa al livello successivo oppure direttamente alle **regole locali verificate**.
+- **Chiedi Consiglio all'IA (usa anche il tuo storico)** parte dagli stessi dati correnti, ma aggiunge le statistiche di tutti i QSO manuali presenti nel database. Il testo risultante viene mostrato nella pagina e non viene salvato come QSO.
 
-Una barriera deterministica controlla inoltre le risposte di RAG e Qwen: frequenze non presenti nei dati live e deduzioni non supportate su MUF, rumore, DX o aperture vengono scartate. Se il RAG risponde ma non supera questa verifica, l'interfaccia lo dichiara e usa Qwen soltanto per riformulare le regole verificate.
+Non occorre premere prima i pulsanti NOAA o POTA: entrambi i controlli raccolgono direttamente ciò che serve, riutilizzando la cache quando è ancora valida. Per lo storico, conteggi e raggruppamenti vengono calcolati da SQLite; i singoli QSO non vengono caricati tutti in memoria né inseriti nel prompt.
 
----
+## Come viene generato il consiglio
 
-## 🔒 Privacy
+L'app prova questi percorsi, nell'ordine:
 
-Non c'è un server remoto dell'applicazione. Non c'è un account. Non c'è niente da pagare.
+1. swlbot RAG con il corpus tecnico e il modello locale;
+2. Qwen tramite Ollama, senza RAG, se il primo servizio non risponde;
+3. le regole deterministiche integrate, se non è disponibile alcun modello.
 
-I QSO finiscono in un file SQLite sul tuo disco e non vengono inclusi nelle richieste NOAA o POTA. Le uniche comunicazioni esterne predefinite dell'app sono le letture dei dati pubblici NOAA e POTA; l'inferenza AI avviene su `localhost` tramite swlbot RAG o Ollama.
+Le risposte di RAG e Qwen passano comunque attraverso una verifica locale. Frequenze assenti dai dati correnti e deduzioni non supportate su MUF, rumore, DX o aperture vengono scartate. In quel caso l'app passa al livello successivo e spiega nell'interfaccia cosa è successo. Se nessun testo generato supera il controllo, mostra soltanto il consiglio calcolato dalle regole.
 
-Il server dell'app ascolta soltanto su `127.0.0.1` per impostazione predefinita e rifiuta le scritture provenienti da origini web diverse. L'accesso dalla rete locale è un'opzione avanzata: imposta `CONSIGLIERE_HOST=0.0.0.0` solo su una rete fidata, perché l'app non implementa account o autenticazione.
+L'integrazione con il modello linguistico locale dell'autore è ancora un lavoro in corso. Gli avvisi **CONSIGLIO QWEN SENZA RAG**, **CONSIGLIO QWEN DOPO VERIFICA RAG** e **CONSIGLIO LOCALE DOPO VERIFICA AI** servono a rendere visibile quale percorso è stato usato. Un consiglio radio resta comunque un'indicazione: va confrontato con NOAA, spot POTA e segnali realmente ricevuti.
 
-Se configuri `SWLBOT_RAG_URL` o `DIRECT_LLM_URL` verso un computer remoto, il riepilogo operativo inviato a quell'endpoint può comprendere QTH, statistiche per banda e modo e dati NOAA/POTA. I singoli record QSO non vengono inclusi nel prompt attuale.
+## Privacy e accesso di rete
 
----
+Per impostazione predefinita l'applicazione comunica all'esterno soltanto per leggere i dati pubblici NOAA e POTA. Il registro rimane sul disco; le richieste a questi servizi non contengono i QSO.
 
-## 🚀 Installazione
+swlbot RAG e Ollama vengono contattati su `localhost`. Se imposti `SWLBOT_RAG_URL` o `DIRECT_LLM_URL` verso un altro computer, il riepilogo inviato a quell'indirizzo può comprendere QTH, statistiche aggregate per banda e modo e dati NOAA/POTA. I singoli record QSO non fanno parte del prompt attuale.
+
+Il server web ascolta soltanto su `127.0.0.1` e rifiuta le scritture provenienti da origini diverse. Puoi abilitarne volontariamente l'accesso dalla rete locale con `CONSIGLIERE_HOST=0.0.0.0`, ma fallo solo su una rete fidata: l'app non gestisce utenti, password o autenticazione e non deve essere esposta direttamente a Internet.
+
+## Installazione
 
 ### Windows
 
-1. Apri la pagina **[Releases](https://github.com/111blackeagle111/consigliere-di-stazione/releases)** e scarica `ConsigliereDiStazione.exe` dalla versione più recente
-2. Mettilo dove vuoi (Desktop, Documenti...)
-3. Doppio click
-4. Il browser si apre da solo su `http://localhost:8080`
+1. Apri la pagina [Releases](https://github.com/111blackeagle111/consigliere-di-stazione/releases).
+2. Scarica `ConsigliereDiStazione.exe` dalla versione più recente.
+3. Salvalo sul Desktop, in Documenti o in un'altra cartella a tua scelta.
+4. Avvialo con un doppio clic. Il browser si aprirà su `http://localhost:8080`.
 
-Per registro, NOAA, POTA e consigli deterministici non serve Python e non bisogna installare altro. Il modello linguistico non è incluso nell'eseguibile: per i consigli generati da RAG o Qwen occorrono Ollama e i servizi locali descritti sotto.
+Python non è necessario. L'eseguibile comprende il registro, l'accesso a NOAA e POTA e il motore di regole. Ollama, Qwen, il corpus tecnico e swlbot RAG non sono inclusi e servono soltanto per i testi generati dal modello.
 
-Per fermare il programma, chiudi la finestra nera che rimane aperta.
+Per arrestare l'applicazione, premi Invio nella finestra nera oppure chiudila. Chiudere soltanto la scheda del browser non ferma il server.
 
-Prima volta? Leggi la **[Guida rapida per Windows](docs/GUIDA_WINDOWS.txt)** — download, verifica SHA-256, Windows Defender, primo avvio e backup dei log.
+Per il primo avvio, SmartScreen, il checksum e il backup del registro consulta la [guida rapida per Windows](docs/GUIDA_WINDOWS.txt).
 
-### Linux / Raspberry Pi
+### Linux e Raspberry Pi
 
 ```bash
 git clone https://github.com/111blackeagle111/consigliere-di-stazione.git
@@ -97,69 +93,66 @@ python3 -m venv .venv
 .venv/bin/python src/main.py
 ```
 
-Per usare i consigli generati dal modello linguistico, installa e avvia Ollama con il modello configurato. Per aggiungere anche il corpus tecnico, avvia swlbot RAG sulla porta 8081:
+L'app è disponibile su `http://localhost:8080`.
+
+### Modello locale e RAG, facoltativi
+
+Per ottenere testi generati dal modello, installa Ollama e avvia il modello configurato. Per aggiungere anche il corpus tecnico, avvia swlbot RAG sulla porta 8081:
 
 ```bash
 cd ../swl-rag
 python server.py
 ```
 
-In un secondo terminale avvia l'applicazione:
+In un altro terminale avvia il Consigliere:
 
 ```bash
 cd consigliere-di-stazione
 .venv/bin/python src/main.py
 ```
 
-📋 **Requisiti per le funzioni AI facoltative:**
-- **RAM:** 4 GB minimi, 8 GB consigliati per modello e RAG
-- **Disco:** spazio sufficiente per Ollama, il modello e l'indice ChromaDB
-- **Testato su:** PC x86_64, Raspberry Pi 4 (4 GB+) e Raspberry Pi 5
+Per modello e RAG sono consigliati almeno 8 GB di RAM; 4 GB possono bastare con configurazioni leggere. Serve inoltre spazio su disco per Ollama, il modello e l'indice ChromaDB. Il progetto è stato provato su PC x86_64, Raspberry Pi 4 con almeno 4 GB e Raspberry Pi 5.
 
 Le variabili disponibili sono:
 
-- `SWLBOT_RAG_URL`: endpoint del servizio, predefinito `http://127.0.0.1:8081/api/advice`;
-- `SWLBOT_RAG_TIMEOUT`: timeout in secondi, `90` per impostazione predefinita;
-- `DIRECT_LLM_URL`: endpoint Ollama diretto, predefinito `http://127.0.0.1:11434/api/chat`;
-- `DIRECT_LLM_MODEL`: modello di fallback, predefinito `qwen3.5:4b`;
-- `DIRECT_LLM_TIMEOUT`: timeout del fallback diretto, `90` secondi;
-- `CONSIGLIERE_DATA_DIR`: directory personalizzata per `swl_logs.db`;
+- `SWLBOT_RAG_URL`: endpoint RAG, predefinito `http://127.0.0.1:8081/api/advice`;
+- `SWLBOT_RAG_TIMEOUT`: timeout RAG, predefinito `90` secondi;
+- `DIRECT_LLM_URL`: endpoint Ollama, predefinito `http://127.0.0.1:11434/api/chat`;
+- `DIRECT_LLM_MODEL`: modello diretto, predefinito `qwen3.5:4b`;
+- `DIRECT_LLM_TIMEOUT`: timeout del modello diretto, predefinito `90` secondi;
+- `CONSIGLIERE_DATA_DIR`: cartella personalizzata per `swl_logs.db`;
 - `CONSIGLIERE_HOST`: indirizzo di ascolto, predefinito `127.0.0.1`;
 - `CONSIGLIERE_PORT`: porta locale, predefinita `8080`.
 
-Senza swlbot RAG l'app prova Qwen direttamente e mostra **CONSIGLIO QWEN SENZA RAG**. Se anche Ollama non è disponibile, mostra **CONSIGLIO LOCALE** calcolato con le regole. L'integrazione con il modello locale è ancora sperimentale e non fa parte dell'eseguibile autonomo.
+Senza swlbot RAG l'app prova Qwen direttamente. Se Ollama non risponde, usa le regole locali: il registro e le altre funzioni continuano a funzionare.
 
-## 💾 Database e architettura
+## Database, aggiornamenti e orari
 
-SQLite è gestito tramite SQLAlchemy. Durante lo sviluppo il database rimane nella directory del progetto. Le nuove installazioni Windows salvano i dati in `%LOCALAPPDATA%\ConsigliereDiStazione\swl_logs.db`; Linux usa `${XDG_DATA_HOME:-~/.local/share}/consigliere-di-stazione/swl_logs.db`.
+Durante lo sviluppo, SQLite salva `swl_logs.db` nella directory del progetto. Le nuove installazioni Windows usano `%LOCALAPPDATA%\ConsigliereDiStazione\swl_logs.db`; Linux usa `${XDG_DATA_HOME:-~/.local/share}/consigliere-di-stazione/swl_logs.db`.
 
-Per non nascondere i registri esistenti, l'eseguibile continua a usare automaticamente un vecchio `swl_logs.db` trovato accanto al file `.exe`. Puoi quindi aggiornare senza spostare subito il database.
+Se l'eseguibile trova un vecchio `swl_logs.db` accanto al file `.exe`, continua a usarlo. In questo modo un aggiornamento non nasconde il registro già esistente.
 
-Dalla pagina principale sono disponibili **Esporta CSV**, **Esporta ADIF** e **Backup database**. CSV e ADIF includono soltanto i QSO manuali; il backup conserva anche impostazioni e record tecnici.
+CSV e ADIF includono soltanto i QSO manuali. Il backup SQLite conserva anche impostazioni, dati tecnici NOAA e alert. L'interfaccia mostra le date in ora locale; il CSV contiene sia l'ora locale sia UTC e l'ADIF usa UTC. I vecchi timestamp non vengono riscritti durante l'aggiornamento.
 
-Per compatibilità, i timestamp già presenti nel database restano nel formato locale storico: l'interfaccia li mostra in ora locale, il CSV aggiunge la corrispondente colonna UTC e l'ADIF viene prodotto in UTC. Non viene eseguita una migrazione distruttiva dei vecchi orari.
+## Sviluppo e release
 
-## 🏷️ Versioni e release
+Lo stato della prossima versione è descritto nel [changelog](CHANGELOG.md). Una release viene pubblicata soltanto da un tag `vX.Y.Z` coerente con il file `VERSION`. Se `VERSION` termina in `-dev`, la pubblicazione viene bloccata. La pipeline Windows genera l'eseguibile e il relativo checksum SHA-256.
 
-Lo stato della prossima versione è in [CHANGELOG.md](CHANGELOG.md). Una release viene creata soltanto da un tag `vX.Y.Z`: la pipeline controlla che il tag corrisponda al file `VERSION`, compila l'EXE su Windows e pubblica anche il checksum SHA-256. Finché `VERSION` termina in `-dev`, la pubblicazione è bloccata intenzionalmente.
-
-Per eseguire la suite di sviluppo:
+Per eseguire i test:
 
 ```bash
 .venv/bin/pip install -r requirements.txt
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-### Generare uno storico dimostrativo
-
-Per test e screenshot puoi inserire 240 QSO sintetici distribuiti sugli ultimi sei mesi:
+Per popolare il registro con 240 QSO sintetici distribuiti sugli ultimi sei mesi:
 
 ```bash
 .venv/bin/python scripts/seed_demo_qsos.py
 ```
 
-Lo script crea prima un backup del database e marca ogni record con `[DEMO-6M]`. Se i dati demo sono già presenti, non li duplica; usa `--replace-demo` soltanto per rigenerarli.
+Lo script crea prima un backup e marca ogni riga con `[DEMO-6M]`. Non duplica i dati già presenti; l'opzione `--replace-demo` serve a rigenerarli.
 
-## 📖 Press / Article
+## Articolo
 
 [I Built an AI Ham Radio Assistant That Runs Entirely Offline](https://medium.com/@andrea.maccafeo/i-built-an-ai-ham-radio-assistant-that-runs-entirely-offline-because-your-qso-log-is-none-of-992cac4230cf) — Medium
