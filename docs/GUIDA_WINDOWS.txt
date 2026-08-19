@@ -14,12 +14,23 @@ sperimentale e richiede componenti separati (vedi sezione 7).
 1. SCARICARE IL PROGRAMMA
 ================================================================================
 
-1. Apri https://github.com/111blackeagle111/consigliere-di-stazione
-2. Clicca su "ConsigliereDiStazione.exe" nella lista dei file
-3. Clicca su "Download raw file" (freccia verso il basso)
-4. Salva il file in una cartella comoda, per esempio Desktop o Documenti
+1. Apri https://github.com/111blackeagle111/consigliere-di-stazione/releases
+2. Apri la versione più recente
+3. In "Assets" scarica ConsigliereDiStazione.exe
+4. Scarica anche ConsigliereDiStazione.exe.sha256
+5. Salva entrambi nella stessa cartella
 
-Il file occupa circa 20 MB. Python non è necessario.
+Python non è necessario.
+
+VERIFICA FACOLTATIVA DEL CHECKSUM
+---------------------------------
+
+Apri PowerShell nella cartella del file ed esegui:
+
+  (Get-FileHash .\ConsigliereDiStazione.exe -Algorithm SHA256).Hash
+
+Il valore deve coincidere con quello scritto nel file .sha256 pubblicato nella
+stessa release. Se non coincide, non avviare il programma e scaricalo di nuovo.
 
 
 ================================================================================
@@ -89,6 +100,8 @@ Per consultare tutto il registro clicca "Apri storico completo". Puoi:
 - scorrere 50 QSO per pagina;
 - modificare o eliminare un QSO manuale.
 
+L'eliminazione è definitiva: prima di cancellare molti QSO usa "Backup database".
+
 Sotto la tabella trovi anche:
 - "Esporta CSV", adatto a fogli di calcolo e archiviazione;
 - "Esporta ADIF", per importare i QSO nei software radioamatoriali;
@@ -127,11 +140,13 @@ Sotto la tabella trovi anche:
 - mostra il consiglio nella pagina ma non lo salva come QSO.
 
 Non è necessario premere prima i pulsanti NOAA o POTA: i due controlli
-eseguono le proprie letture aggiornate quando vengono cliccati.
+ottengono direttamente i dati necessari, riutilizzando la cache breve quando è
+ancora valida.
 
 Per ridurre chiamate ripetute, NOAA e POTA usano una breve cache locale. Se un
 servizio diventa temporaneamente irraggiungibile, il programma può mostrare
-l'ultimo dato valido indicandolo chiaramente come dato in cache.
+l'ultimo dato valido indicandolo chiaramente come dato in cache. NOAA resta in
+cache 60 secondi e POTA 30; l'interfaccia mostra ora del dato ed età della cache.
 
 
 ================================================================================
@@ -144,6 +159,9 @@ Il percorso usato dai due controlli è:
 2. se il RAG non risponde, Qwen locale senza RAG;
 3. se anche Qwen non risponde, motore deterministico integrato.
 
+Se una risposta contiene frequenze o deduzioni operative non supportate dai
+dati correnti, la barriera deterministica la scarta e passa al livello seguente.
+
 L'eseguibile NON contiene Ollama, Qwen, il corpus o il server RAG. Senza questi
 componenti il programma continua a funzionare e mostra "CONSIGLIO LOCALE".
 
@@ -153,6 +171,10 @@ il corpus tecnico. L'avviso è intenzionale: la risposta è meno verificabile.
 "CONSIGLIO QWEN DOPO VERIFICA RAG" significa invece che il RAG ha risposto, ma
 la sua risposta conteneva frequenze o deduzioni non supportate dai dati live ed
 è stata scartata. Qwen ha quindi riformulato soltanto le regole verificate.
+
+"CONSIGLIO LOCALE DOPO VERIFICA AI" significa che anche l'ultima risposta AI
+non ha superato il controllo: il testo mostrato proviene esclusivamente dalle
+regole locali, senza utilizzare frasi generate dai modelli.
 
 L'integrazione con il modello linguistico locale dell'autore è sperimentale e
 in fase di sviluppo. Controlla sempre il consiglio confrontandolo con K-index,
@@ -187,6 +209,9 @@ dall'installazione.
 CSV e ADIF contengono soltanto i QSO manuali. Il backup completo contiene anche
 impostazioni, aggiornamenti NOAA e alert tecnici.
 
+Le date sono mostrate localmente. Il CSV contiene ora locale e UTC; l'ADIF usa
+UTC. I vecchi timestamp non vengono riscritti durante l'aggiornamento.
+
 
 ================================================================================
 9. PROBLEMI COMUNI
@@ -211,6 +236,10 @@ Compare "CONSIGLIO LOCALE":
 Compare "CONSIGLIO QWEN SENZA RAG":
 - Ollama e Qwen rispondono, ma il corpus tecnico RAG non è disponibile;
 - avvia swlbot RAG sulla porta 8081 per riattivare il retrieval.
+
+Compare "CONSIGLIO LOCALE DOPO VERIFICA AI":
+- RAG o Qwen hanno prodotto elementi non supportati dai dati correnti;
+- la barriera li ha scartati e il consiglio mostrato usa soltanto le regole.
 
 
 ================================================================================

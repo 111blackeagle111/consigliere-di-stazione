@@ -445,6 +445,7 @@ def find_unsupported_advice_claim(response_text: str, current_data: str) -> Opti
 
 def ask_ai(instruction: str, current_data: str) -> tuple[Optional[str], str]:
     rag_rejected = False
+    direct_rejected = False
     rag_response = ask_rag(instruction, current_data)
     if rag_response:
         unsupported = find_unsupported_advice_claim(rag_response, current_data)
@@ -459,8 +460,9 @@ def ask_ai(instruction: str, current_data: str) -> tuple[Optional[str], str]:
         if not unsupported:
             return direct_response, "llm-direct-guarded" if rag_rejected else "llm-direct"
         logger.warning("Risposta LLM diretto scartata: %s", unsupported)
+        direct_rejected = True
 
-    return None, "rules"
+    return None, "rules-guarded" if rag_rejected or direct_rejected else "rules"
 
 # ============================================================
 # ALERT SYSTEM
@@ -570,7 +572,7 @@ def _fetch_solar_data():
             "sfi": sfi_val,
             "sfi_float": float(sfi_val) if sfi_val not in ["N/A", None] else None,
             "sfi_time": sfi_time,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now().astimezone().isoformat(),
             "source": "NOAA SWPC"
         }
         
@@ -616,7 +618,12 @@ def get_pota_payload(force_refresh: bool = False) -> tuple[list, dict]:
     cached = None if force_refresh else pota_data_cache.get()
     if cached:
         value, age = cached
-        return value, {"cached": True, "cache_age_seconds": round(age, 1), "stale": False}
+        return value, {
+            "cached": True,
+            "cache_age_seconds": round(age, 1),
+            "data_timestamp": (datetime.now().astimezone() - timedelta(seconds=age)).isoformat(),
+            "stale": False,
+        }
 
     try:
         response = requests.get("https://api.pota.app/spot/activator", timeout=15)
@@ -625,7 +632,12 @@ def get_pota_payload(force_refresh: bool = False) -> tuple[list, dict]:
         if not isinstance(value, list):
             raise ValueError("Risposta POTA non valida")
         pota_data_cache.set(value)
-        return value, {"cached": False, "cache_age_seconds": 0.0, "stale": False}
+        return value, {
+            "cached": False,
+            "cache_age_seconds": 0.0,
+            "data_timestamp": datetime.now().astimezone().isoformat(),
+            "stale": False,
+        }
     except (requests.RequestException, ValueError, TypeError) as exc:
         stale = pota_data_cache.get(allow_stale=True)
         if stale:
@@ -633,6 +645,7 @@ def get_pota_payload(force_refresh: bool = False) -> tuple[list, dict]:
             return value, {
                 "cached": True,
                 "cache_age_seconds": round(age, 1),
+                "data_timestamp": (datetime.now().astimezone() - timedelta(seconds=age)).isoformat(),
                 "stale": True,
                 "warning": str(exc),
             }
@@ -838,8 +851,9 @@ VALUTAZIONE DETERMINISTICA DELL'APP (non contraddire):
 
     ai_response, source = ask_ai(instruction, current_data)
     if not ai_response:
-        source = "rules"
         ai_response = rule_guidance
+        if source not in {"rules", "rules-guarded"}:
+            source = "rules"
     
     return {
         "message": ai_response.strip(),
@@ -1172,7 +1186,9 @@ def fetch_dxspots(band: str = "20m", mode: str = "ALL", db: Session = Depends(ge
         "stale": result.get("stale", False),
         "warning": result.get("warning"),
         "source": "POTA.app",
-        "timestamp": datetime.now().isoformat()
+        "data_timestamp": result.get("data_timestamp"),
+        "response_timestamp": datetime.now().astimezone().isoformat(),
+        "timestamp": result.get("data_timestamp") or datetime.now().astimezone().isoformat(),
     }
 
 @app.get("/alert/check")
@@ -1442,7 +1458,8 @@ VALUTAZIONE DETERMINISTICA DELL'APP (non contraddire):
     response_text, source = ask_ai(instruction, current_data)
     if not response_text:
         response_text = rule_guidance
-        source = "rules"
+        if source not in {"rules", "rules-guarded"}:
+            source = "rules"
 
     model = (
         "swlbot-rag" if source == "swlbot-rag" else

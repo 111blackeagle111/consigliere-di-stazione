@@ -780,6 +780,8 @@
                             ? '<br><br>🛡️ <small>La risposta RAG conteneva deduzioni non supportate ed è stata scartata; alert riformulato da Qwen sulle sole regole verificate.</small>'
                         : d.alert.source === 'rules'
                             ? '<br><br>🧭 <small>RAG e LLM non disponibili: alert calcolato con le regole locali.</small>'
+                            : d.alert.source === 'rules-guarded'
+                                ? '<br><br>🛡️ <small>Le risposte AI non hanno superato la verifica: alert calcolato esclusivamente con le regole locali.</small>'
                             : '';
                     resp.innerHTML = `✅ <strong>Alert Generato!</strong><br><br>🎯 ${escapeHtml(d.alert.message)}<br><br><em>Score: ${escapeHtml(d.evaluation.score)}/100 - Livello: ${escapeHtml(d.evaluation.level)}</em>${sourceWarning}`;
                 } else if (d.status === 'cached') {
@@ -845,6 +847,7 @@
 <strong>K-Index:</strong> ${escapeHtml(data.data.k_index || 'N/A')}
 <strong>Solar Flux:</strong> ${escapeHtml(data.data.sfi || 'N/A')}
 <strong>Condizioni:</strong> ${escapeHtml(data.interpretation)}
+<strong>Ora del dato:</strong> ${escapeHtml(data.data.timestamp ? new Date(data.data.timestamp).toLocaleString('it-IT') : 'non disponibile')}
 
 <em>Salvato automaticamente nel database${data.data.cached ? ` · cache ${escapeHtml(data.data.cache_age_seconds)}s${data.data.stale ? ' (ultimo dato valido)' : ''}` : ''}</em>`;
                 } else {
@@ -903,7 +906,11 @@
                 const cacheLabel = data.cached
                     ? ` · cache ${escapeHtml(data.cache_age_seconds)}s${data.stale ? ' (ultimo dato valido)' : ''}`
                     : '';
-                html += `\n<em>Aggiornato: ${new Date().toLocaleTimeString()}${cacheLabel}</em>`;
+                const dataTime = data.data_timestamp || data.timestamp;
+                const dataTimeLabel = dataTime
+                    ? new Date(dataTime).toLocaleString('it-IT')
+                    : 'non disponibile';
+                html += `\n<em>Ora del dato: ${escapeHtml(dataTimeLabel)}${cacheLabel}</em>`;
                 resp.innerHTML = html;
                 
             } catch (e) {
@@ -932,6 +939,8 @@
                     resp.innerHTML = '⚠️ <strong>Consiglio non disponibile.</strong><br>Controlla i dati NOAA e riprova.';
                 } else if (data.source === 'rules') {
                     resp.innerHTML = '🧭 <strong>CONSIGLIO LOCALE:</strong><br><small>RAG e LLM non disponibili: risposta calcolata dai dati NOAA, POTA e dal registro.</small>\n\n' + escapeHtml(data.response);
+                } else if (data.source === 'rules-guarded') {
+                    resp.innerHTML = '🛡️ <strong>CONSIGLIO LOCALE DOPO VERIFICA AI:</strong><br><small>Le risposte di RAG e/o Qwen contenevano elementi non supportati e sono state scartate. Questo testo è calcolato esclusivamente dalle regole locali.</small>\n\n' + escapeHtml(data.response);
                 } else if (data.source === 'llm-direct') {
                     resp.innerHTML = '⚠️ <strong>CONSIGLIO QWEN SENZA RAG:</strong><br><small>Il corpus tecnico non è disponibile: risposta generata soltanto dai dati correnti e quindi meno verificabile.</small>\n\n' + escapeHtml(data.response);
                 } else if (data.source === 'llm-direct-guarded') {

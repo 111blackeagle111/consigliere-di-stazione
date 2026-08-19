@@ -76,10 +76,13 @@ ascoltata e viene salvato separatamente in ciascun QSO.
 WINDOWS
 -------
 
-1. Scarica ConsigliereDiStazione.exe dal repository ufficiale
-2. Fai doppio clic sul file
-3. Lascia aperta la finestra nera
-4. Il browser si apre automaticamente su http://localhost:8080
+1. Apri la pagina Releases del repository ufficiale:
+   https://github.com/111blackeagle111/consigliere-di-stazione/releases
+2. Dalla versione più recente scarica ConsigliereDiStazione.exe e il relativo
+   file ConsigliereDiStazione.exe.sha256
+3. Verifica il checksum seguendo GUIDA_WINDOWS.txt
+4. Fai doppio clic sull'eseguibile e lascia aperta la finestra nera
+5. Il browser si apre automaticamente su http://localhost:8080
 
 Per spegnere premi INVIO nella finestra nera oppure chiudila. Chiudere soltanto
 la scheda del browser non arresta il server.
@@ -153,6 +156,9 @@ I campi sono validati anche dal server: frequenza finita e compresa nei limiti,
 modo tra quelli supportati, nominativo e locator nel formato previsto e limiti
 di lunghezza per RST e note.
 
+L'eliminazione è definitiva. Prima di operazioni estese scarica un backup del
+database dalla dashboard.
+
 
 ================================================================================
 6. DATI NOAA E STAZIONI POTA
@@ -190,7 +196,8 @@ azimut e direzione. Questa ricerca non salva alcun QSO.
 
 Le letture NOAA e POTA usano cache brevi, rispettivamente di 60 e 30 secondi.
 Se un aggiornamento fallisce ma esiste un valore precedente, l'interfaccia può
-mostrare l'ultimo dato valido marcato come dato in cache.
+mostrare l'ultimo dato valido marcato come dato in cache. Quando la cache viene
+usata, l'interfaccia mostra sia l'ora del dato sia l'età della cache.
 
 
 ================================================================================
@@ -227,6 +234,8 @@ Quando viene premuto, il programma:
    temporale o numerico, e calcola le statistiche per banda e modo;
 5. costruisce una valutazione deterministica;
 6. chiede a RAG o Qwen di formulare il consiglio, con fallback alle regole.
+7. scarta eventuali frequenze o deduzioni operative non supportate e, se
+   necessario, passa al fallback successivo.
 
 Il consiglio viene mostrato nella pagina ma NON viene salvato nel database.
 Non è necessario premere prima "Aggiorna Dati Solar" o "Cerca Stazioni": il
@@ -260,6 +269,8 @@ Prima di mostrare un testo, una barriera deterministica rifiuta frequenze non
 presenti nei dati correnti e deduzioni non supportate su MUF, rumore, DX o
 aperture. Se il RAG risponde ma non supera il controllo, la pagina mostra
 "CONSIGLIO QWEN DOPO VERIFICA RAG" e Qwen riformula soltanto le regole locali.
+Se anche la risposta Qwen non supera il controllo, viene mostrato "CONSIGLIO
+LOCALE DOPO VERIFICA AI" e il testo proviene esclusivamente dalle regole.
 
 L'integrazione con il modello locale dell'autore è sperimentale e in fase di
 sviluppo. Nessuna delle tre modalità garantisce aperture, direzioni o risultati:
@@ -308,6 +319,10 @@ record tecnici PROP/ALERT. Il CSV contiene data locale e data UTC; l'ADIF usa
 data e ora UTC secondo il formato di interscambio. Il backup SQLite contiene
 invece l'intero database, comprese impostazioni e righe tecniche.
 
+Per non rischiare di reinterpretare gli orari dei vecchi registri, il database
+mantiene i timestamp locali esistenti. L'interfaccia usa l'ora locale, il CSV
+aggiunge la conversione UTC e ADIF esporta data e ora in UTC.
+
 PROBLEMI COMUNI
 ---------------
 
@@ -329,6 +344,10 @@ Compare "CONSIGLIO QWEN SENZA RAG":
 - Ollama/Qwen risponde, ma swlbot RAG non è raggiungibile;
 - avvia il server RAG sulla porta 8081 per usare il corpus.
 
+Compare "CONSIGLIO LOCALE DOPO VERIFICA AI":
+- almeno una risposta del modello non ha superato la barriera deterministica;
+- il testo mostrato usa soltanto NOAA, POTA, statistiche aggregate e regole.
+
 Il programma si chiude subito:
 - avvialo da terminale per leggere l'errore;
 - verifica dipendenze e porta 8080;
@@ -340,7 +359,7 @@ Il programma si chiude subito:
 ================================================================================
 
 Applicazione:
-- FastAPI + Uvicorn, porta 8080
+- FastAPI + Uvicorn, 127.0.0.1:8080 per impostazione predefinita
 - SQLite tramite SQLAlchemy
 - template HTML locale
 

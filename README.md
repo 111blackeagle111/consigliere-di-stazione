@@ -8,7 +8,7 @@
 
 Il Consigliere di Stazione è quello che avevi in shack prima del computer: il socio esperto che guardava il K-index sul giornale e valutava se valeva la pena provare i 20 metri.
 
-Fa esattamente quello, ma in digitale. Registra i QSO, scarica i dati solari da NOAA, controlla l'attività POTA in tempo reale su tutte le bande e combina questi dati con il tuo intero storico operativo. I dati del registro non vengono inviati a servizi esterni.
+Fa esattamente quello, ma in digitale. Registra i QSO, scarica i dati solari da NOAA, controlla l'attività POTA in tempo reale su tutte le bande e combina questi dati con le statistiche del tuo intero storico operativo. I dati del registro non vengono inviati a NOAA o POTA.
 
 **Nessun cloud per il registro. Nessun abbonamento. I tuoi log restano nello shack.**
 
@@ -34,11 +34,11 @@ Lo storico completo viene caricato soltanto quando serve, con ricerca, filtri pe
 
 **Storico completo** — gli ultimi dieci QSO restano visibili nella dashboard; l'archivio completo si apre su richiesta e permette di cercare nominativi, locator e note, filtrare banda e modo, scorrere 50 record per pagina, modificare ed eliminare i QSO manuali. I record tecnici NOAA e gli alert non vengono mescolati ai QSO.
 
-**Esportazioni e backup** — dalla dashboard puoi scaricare tutti i QSO manuali in CSV o ADIF e creare una copia coerente del database SQLite anche mentre l'app è aperta. Le date restano locali nell'interfaccia e vengono convertite in UTC nell'ADIF.
+**Esportazioni e backup** — dalla dashboard puoi scaricare tutti i QSO manuali in CSV o ADIF e creare una copia coerente del database SQLite anche mentre l'app è aperta. Le date restano locali nell'interfaccia; il CSV riporta sia ora locale sia UTC, mentre ADIF usa UTC.
 
-**Dati NOAA** — K-index e Solar Flux Index aggiornati con un click. Ogni nuovo aggiornamento manuale viene conservato nel database come record tecnico, separato dai QSO visibili. NOAA e POTA usano una breve cache locale e, se il servizio cade, possono mostrare l'ultimo dato valido segnalando che è in cache.
+**Dati NOAA** — K-index e Solar Flux Index aggiornati con un click. Ogni nuovo aggiornamento manuale viene conservato nel database come record tecnico, separato dai QSO visibili. NOAA e POTA usano cache locali di 60 e 30 secondi; l'interfaccia indica ora del dato, età e stato della cache e può mostrare l'ultimo dato valido se il servizio cade.
 
-**Il Consigliere** — analizza localmente **tutti** i QSO presenti nel database, senza limiti temporali o numerici, insieme a K-index, SFI e attività POTA reale su tutte le bande. Usa il servizio locale swlbot RAG, che unisce i dati correnti al corpus tecnico del blog. Se il RAG non è disponibile prova Qwen locale senza retrieval, mostrando un avviso; se anche Qwen non risponde passa al motore deterministico.
+**Il Consigliere** — include **tutti** i QSO manuali, senza limiti temporali o numerici, facendo calcolare a SQLite i conteggi per banda e modo senza caricare l'intero registro in memoria. Queste statistiche aggregate vengono unite a K-index, SFI e attività POTA reale su tutte le bande. Usa il servizio locale swlbot RAG, con fallback a Qwen diretto e infine alle regole locali.
 
 > **Work in progress:** l'integrazione con il modello linguistico locale dell'autore è ancora sperimentale e in fase di sviluppo. I consigli generati dall'IA vanno quindi verificati confrontandoli con i dati NOAA, POTA e con la propria esperienza operativa.
 
@@ -46,14 +46,15 @@ Lo storico completo viene caricato soltanto quando serve, con ricerca, filtri pe
 
 ### I due controlli AI
 
-- **Controlla Ora (Genera Alert)** legge NOAA e POTA su tutte le bande, usa il QTH per interpretare gli spot localizzati e valuta le condizioni correnti. Se ci sono elementi sufficienti genera e salva un alert tecnico; non usa lo storico QSO.
-- **Chiedi Consiglio all'IA (usa anche il tuo storico)** legge NOAA e POTA su tutte le bande, usa le distanze calcolate dal QTH e analizza tutti i QSO manuali presenti nel database. Il consiglio non viene salvato come QSO.
+- **Controlla Ora (Genera Alert)** ottiene NOAA e POTA su tutte le bande, riutilizzando la cache breve quando valida, usa il QTH per interpretare gli spot localizzati e valuta gli indicatori operativi correnti. Se ci sono elementi sufficienti genera e salva un alert tecnico; non usa lo storico QSO.
+- **Chiedi Consiglio all'IA (usa anche il tuo storico)** ottiene NOAA e POTA su tutte le bande, usa le distanze calcolate dal QTH e le statistiche aggregate di tutti i QSO manuali. Il consiglio non viene salvato come QSO.
 
 Il percorso di generazione è sempre locale:
 
 1. **swlbot RAG + modello locale** con il corpus tecnico;
 2. se il RAG non risponde, **Qwen diretto** vincolato alla valutazione deterministica, con un avviso visibile;
-3. se anche Ollama non risponde, **regole locali**.
+3. se anche Ollama non risponde, **regole locali**;
+4. se una risposta AI contiene elementi non supportati, viene scartata: si passa al livello successivo oppure direttamente alle **regole locali verificate**.
 
 Una barriera deterministica controlla inoltre le risposte di RAG e Qwen: frequenze non presenti nei dati live e deduzioni non supportate su MUF, rumore, DX o aperture vengono scartate. Se il RAG risponde ma non supera questa verifica, l'interfaccia lo dichiara e usa Qwen soltanto per riformulare le regole verificate.
 
@@ -75,7 +76,7 @@ Se configuri `SWLBOT_RAG_URL` o `DIRECT_LLM_URL` verso un computer remoto, il ri
 
 ### Windows
 
-1. Scarica **[ConsigliereDiStazione.exe](https://github.com/111blackeagle111/consigliere-di-stazione/raw/main/ConsigliereDiStazione.exe)**
+1. Apri la pagina **[Releases](https://github.com/111blackeagle111/consigliere-di-stazione/releases)** e scarica `ConsigliereDiStazione.exe` dalla versione più recente
 2. Mettilo dove vuoi (Desktop, Documenti...)
 3. Doppio click
 4. Il browser si apre da solo su `http://localhost:8080`
@@ -84,7 +85,7 @@ Per registro, NOAA, POTA e consigli deterministici non serve Python e non bisogn
 
 Per fermare il programma, chiudi la finestra nera che rimane aperta.
 
-Prima volta? Leggi la **[Guida rapida per Windows](docs/GUIDA_WINDOWS.txt)** — scarica, Windows Defender, primo avvio, backup dei log.
+Prima volta? Leggi la **[Guida rapida per Windows](docs/GUIDA_WINDOWS.txt)** — download, verifica SHA-256, Windows Defender, primo avvio e backup dei log.
 
 ### Linux / Raspberry Pi
 
@@ -110,8 +111,8 @@ cd consigliere-di-stazione
 .venv/bin/python src/main.py
 ```
 
-📋 **Requisiti:**
-- **RAM:** 4 GB minimi, 8 GB consigliati
+📋 **Requisiti per le funzioni AI facoltative:**
+- **RAM:** 4 GB minimi, 8 GB consigliati per modello e RAG
 - **Disco:** spazio sufficiente per Ollama, il modello e l'indice ChromaDB
 - **Testato su:** PC x86_64, Raspberry Pi 4 (4 GB+) e Raspberry Pi 5
 
@@ -135,6 +136,8 @@ SQLite è gestito tramite SQLAlchemy. Durante lo sviluppo il database rimane nel
 Per non nascondere i registri esistenti, l'eseguibile continua a usare automaticamente un vecchio `swl_logs.db` trovato accanto al file `.exe`. Puoi quindi aggiornare senza spostare subito il database.
 
 Dalla pagina principale sono disponibili **Esporta CSV**, **Esporta ADIF** e **Backup database**. CSV e ADIF includono soltanto i QSO manuali; il backup conserva anche impostazioni e record tecnici.
+
+Per compatibilità, i timestamp già presenti nel database restano nel formato locale storico: l'interfaccia li mostra in ora locale, il CSV aggiunge la corrispondente colonna UTC e l'ADIF viene prodotto in UTC. Non viene eseguita una migrazione distruttiva dei vecchi orari.
 
 ## 🏷️ Versioni e release
 

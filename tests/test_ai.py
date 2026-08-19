@@ -190,6 +190,16 @@ class RagClientTests(unittest.TestCase):
     def test_ask_ai_reports_rules_when_both_ai_services_fail(self, ask_rag: Mock, direct: Mock) -> None:
         self.assertEqual(main.ask_ai("Cosa ascolto?", "K-index: 2"), (None, "rules"))
 
+    @patch("src.main.ask_direct_llm", return_value="La MUF garantisce DX sui 15 MHz.")
+    @patch("src.main.ask_rag", return_value="Evita le bande per lo strato D.")
+    def test_ask_ai_reports_guarded_rules_when_both_models_are_unsafe(
+        self, ask_rag: Mock, direct: Mock
+    ) -> None:
+        self.assertEqual(
+            main.ask_ai("Consiglio", "Attività POTA su 20m"),
+            (None, "rules-guarded"),
+        )
+
     @patch("src.main.ask_ai", return_value=(None, "rules"))
     def test_alert_falls_back_to_deterministic_message(self, ask_ai: Mock) -> None:
         evaluation = {
@@ -208,6 +218,25 @@ class RagClientTests(unittest.TestCase):
         self.assertEqual(alert["source"], "rules")
         self.assertIn("K-index basso", alert["message"])
         self.assertLessEqual(len(alert["message"]), 280)
+        ask_ai.assert_called_once()
+
+    @patch("src.main.ask_ai", return_value=(None, "rules-guarded"))
+    def test_alert_preserves_guarded_rules_source(self, ask_ai: Mock) -> None:
+        evaluation = {
+            "score": 70,
+            "level": "eccellenti",
+            "details": ["Attività moderata"],
+            "warnings": [],
+            "opportunities": ["K-index basso"],
+            "top_bands": [("20m", 8)],
+            "total_activity": 8,
+            "solar": {"k": 1.0, "sfi": 140.0},
+        }
+
+        alert = main.generate_smart_alert(evaluation, {}, {})
+
+        self.assertEqual(alert["source"], "rules-guarded")
+        self.assertIn("K-index basso", alert["message"])
         ask_ai.assert_called_once()
 
     @patch("src.main.ask_ai", return_value=("Ascolta i 20 metri.", "swlbot-rag"))
@@ -423,6 +452,8 @@ class RagClientTests(unittest.TestCase):
 
         self.assertFalse(first["cached"])
         self.assertTrue(second["cached"])
+        self.assertIn("data_timestamp", first)
+        self.assertIn("data_timestamp", second)
         get.assert_called_once()
 
     @patch("src.main.requests.get")
@@ -434,6 +465,7 @@ class RagClientTests(unittest.TestCase):
 
         self.assertTrue(result["cached"])
         self.assertTrue(result["stale"])
+        self.assertIn("data_timestamp", result)
         self.assertEqual(result["count"], 1)
 
     def test_manual_qso_can_be_edited_and_deleted_but_technical_rows_cannot(self) -> None:
