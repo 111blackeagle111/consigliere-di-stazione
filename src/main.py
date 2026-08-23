@@ -940,8 +940,6 @@ def qso_history(
 def local_timestamp_to_utc(value: Optional[datetime]) -> Optional[datetime]:
     if value is None:
         return None
-    if value.tzinfo is None:
-        return value.astimezone(timezone.utc)
     return value.astimezone(timezone.utc)
 
 
