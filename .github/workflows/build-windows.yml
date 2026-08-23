@@ -7,11 +7,9 @@ on:
     paths:
       - "src/**"
       - "templates/**"
-      - "tests/**"
       - "requirements.txt"
       - "VERSION"
       - "build/**"
-      - ".github/workflows/build-windows.yml"
   pull_request:
   workflow_dispatch:
     inputs:
