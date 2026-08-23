@@ -12,6 +12,7 @@ on:
       - "VERSION"
       - "build/**"
       - ".github/workflows/build-windows.yml"
+  pull_request:
   workflow_dispatch:
     inputs:
       publish_binary:
@@ -46,6 +47,7 @@ jobs:
 
   build:
     needs: test
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
     steps:
       - name: Check out repository
