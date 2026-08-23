@@ -7,6 +7,7 @@ on:
     paths:
       - "src/**"
       - "templates/**"
+      - "tests/**"
       - "requirements.txt"
       - "VERSION"
       - "build/**"
@@ -23,7 +24,28 @@ permissions:
   contents: write
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Run tests
+        run: python -m unittest tests.test_ai
+
   build:
+    needs: test
     runs-on: windows-latest
     steps:
       - name: Check out repository
