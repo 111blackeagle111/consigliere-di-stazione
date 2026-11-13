@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.1 — 2026-11-13
+
+- Quando NOAA o POTA non rispondono, l'app conserva l'ultimo dato valido se disponibile. I messaggi di errore mostrati all'utente sono generici e i dettagli tecnici restano nei log del server.
+- I consigli AI scartano le frequenze prive di riscontro nei dati correnti. Se RAG o Ollama restituiscono una risposta malformata, l'app può continuare con il fallback.
+- L'esportazione ADI converte i commenti in ASCII e rappresenta FT4 e PSK31 come sottomodi. Le note originali si conservano nel registro e nel CSV.
+- Aggiornate le dipendenze Python e la versione di `actions/checkout` usata per le build.
+
 ## 1.1.0 — 2026-08-19
 
 - Analisi AI dell'intero storico tramite aggregazioni SQLite, insieme a NOAA e POTA su tutte le bande.

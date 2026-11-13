@@ -1,7 +1,7 @@
 ================================================================================
                        MANUALE UTENTE
                      Consigliere di Stazione
-                       Versione 1.1.0
+                       Versione 1.1.1
                           di I6502TR
 ================================================================================
 
@@ -318,6 +318,8 @@ ESPORTAZIONE
 record tecnici PROP/ALERT. Il CSV contiene data locale e data UTC; l'ADIF usa
 data e ora UTC secondo il formato di interscambio. Il backup SQLite contiene
 invece l'intero database, comprese impostazioni e righe tecniche.
+
+Nel file ADI i commenti sono convertiti in ASCII per compatibilità con il formato. Il registro e il CSV conservano il testo originale.
 
 Per non rischiare di reinterpretare gli orari dei vecchi registri, il database
 mantiene i timestamp locali esistenti. L'interfaccia usa l'ora locale, il CSV
