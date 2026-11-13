@@ -442,6 +442,75 @@ class RagClientTests(unittest.TestCase):
             db.close()
 
     @patch("src.main.requests.get")
+    def test_noaa_error_details_stay_in_server_logs_without_cache(self, get: Mock) -> None:
+        detail = "502 Bad Gateway via proxy.internal"
+        get.return_value.raise_for_status.side_effect = requests.HTTPError(detail)
+        public_error = "Aggiornamento NOAA non disponibile"
+
+        with self.assertLogs(main.logger, level="ERROR") as logs:
+            solar = main.fetch_solar(db=Mock())
+            alert = main.check_alert_auto(db=Mock())
+            trigger = main.trigger_check_ui(db=Mock())
+            debug = main.test_noaa_connection()
+
+        self.assertEqual(solar, {"status": "error", "message": public_error})
+        self.assertEqual(alert["status"], "error")
+        self.assertEqual(alert["error_detail"], public_error)
+        self.assertEqual(trigger, alert)
+        self.assertEqual(debug["noaa_status"], "error")
+        self.assertIsNone(debug["data"])
+        self.assertEqual(debug["error_details"], public_error)
+        self.assertIn(detail, "\n".join(logs.output))
+
+    @patch("src.main.requests.get")
+    def test_noaa_stale_cache_keeps_data_and_hides_exception_details(self, get: Mock) -> None:
+        detail = "Risposta non valida da upstream.internal"
+        get.return_value.json.side_effect = ValueError(detail)
+        cached = {"status": "ok", "k_index": 2, "sfi": 125}
+        with patch("src.main.time.monotonic", return_value=time.monotonic() - 61):
+            main.solar_data_cache.set(cached)
+
+        engine = create_engine("sqlite:///:memory:")
+        self.addCleanup(engine.dispose)
+        main.Base.metadata.create_all(engine)
+        with sessionmaker(bind=engine)() as db, self.assertLogs(main.logger, level="ERROR") as logs:
+            solar = main.fetch_solar(db=db)
+            debug = main.test_noaa_connection()
+
+        self.assertEqual(solar["status"], "ok")
+        self.assertEqual(debug["noaa_status"], "ok")
+        self.assertIsNone(debug["error_details"])
+        for data in (solar["data"], debug["data"]):
+            self.assertEqual(data["k_index"], 2)
+            self.assertEqual(data["sfi"], 125)
+            self.assertTrue(data["cached"])
+            self.assertTrue(data["stale"])
+            self.assertGreaterEqual(data["cache_age_seconds"], 60)
+            self.assertEqual(data["warning"], "Aggiornamento NOAA non disponibile")
+        self.assertIn(detail, "\n".join(logs.output))
+
+    @patch("src.main.requests.get")
+    def test_pota_debug_error_details_stay_in_server_logs(self, get: Mock) -> None:
+        detail = "Errore di connessione a proxy.internal"
+        get.side_effect = requests.ConnectionError(detail)
+
+        with self.assertLogs(main.logger, level="ERROR") as logs:
+            result = main.debug_pota_raw()
+            self.assertEqual(result, {"status": "error", "message": "Dati POTA non disponibili"})
+        self.assertIn(detail, "\n".join(logs.output))
+
+    @patch("src.main.requests.get")
+    def test_pota_debug_still_returns_the_requested_sample(self, get: Mock) -> None:
+        spots = [{"frequency": "14074"}, {"frequency": "7074"}]
+        get.return_value.json.return_value = spots
+
+        result = main.debug_pota_raw(limit=1)
+
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["total_spots"], 2)
+        self.assertEqual(result["sample_structure"], spots[:1])
+
+    @patch("src.main.requests.get")
     def test_pota_cache_avoids_duplicate_network_calls(self, get: Mock) -> None:
         response = Mock()
         response.json.return_value = [{"frequency": "14074", "mode": "FT8"}]
