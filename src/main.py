@@ -582,9 +582,9 @@ def _fetch_solar_data():
     except requests.exceptions.ConnectionError:
         logger.error("NOAA Connection Error")
         return {"status": "error", "error": "Errore connessione/DNS", "k_index": "N/A", "sfi": "N/A", "k_float": None, "sfi_float": None}
-    except Exception as e:
-        logger.error(f"NOAA Error type={type(e).__name__} args={e.args}: {e}")
-        return {"status": "error", "error": str(e), "k_index": "N/A", "sfi": "N/A", "k_float": None, "sfi_float": None}
+    except Exception:
+        logger.exception("Errore durante l'aggiornamento dei dati NOAA")
+        return {"status": "error", "error": "Aggiornamento NOAA non disponibile", "k_index": "N/A", "sfi": "N/A", "k_float": None, "sfi_float": None}
 
 
 def get_solar_data(force_refresh: bool = False):
@@ -1342,8 +1342,9 @@ def debug_pota_raw(limit: int = 3):
             "sample_structure": sample,
             "hint": "Controlla campi: frequency/freq, mode, activator, name, grid4/grid6"
         }
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+    except Exception:
+        logger.exception("Errore durante la richiesta diagnostica POTA")
+        return {"status": "error", "message": "Dati POTA non disponibili"}
 def generate_rule_based_advice(solar: dict, pota: dict, bands: dict, modes: dict, ora: int) -> str:
     k = solar.get("k_float")
     sfi = solar.get("sfi_float")
