@@ -638,16 +638,17 @@ def get_pota_payload(force_refresh: bool = False) -> tuple[list, dict]:
             "data_timestamp": datetime.now().astimezone().isoformat(),
             "stale": False,
         }
-    except (requests.RequestException, ValueError, TypeError) as exc:
+    except (requests.RequestException, ValueError, TypeError):
         stale = pota_data_cache.get(allow_stale=True)
         if stale:
+            logger.warning("Aggiornamento POTA fallito, uso l'ultimo dato valido", exc_info=True)
             value, age = stale
             return value, {
                 "cached": True,
                 "cache_age_seconds": round(age, 1),
                 "data_timestamp": (datetime.now().astimezone() - timedelta(seconds=age)).isoformat(),
                 "stale": True,
-                "warning": str(exc),
+                "warning": "Aggiornamento POTA non disponibile",
             }
         raise
 

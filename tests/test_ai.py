@@ -537,6 +537,32 @@ class RagClientTests(unittest.TestCase):
         self.assertIn("data_timestamp", result)
         self.assertEqual(result["count"], 1)
 
+    @patch("src.main.get_operator_locator", return_value="")
+    @patch("src.main.requests.get")
+    def test_dxspots_returns_stale_data_without_exception_details(
+        self, get: Mock, get_locator: Mock
+    ) -> None:
+        with patch("src.main.time.monotonic", return_value=time.monotonic() - 31):
+            main.pota_data_cache.set([
+                {"frequency": "14074", "mode": "FT8", "activator": "TEST1"},
+            ])
+        detail = "Errore di connessione a proxy.internal"
+        get.side_effect = requests.ConnectionError(detail)
+
+        with self.assertLogs(main.logger, level="WARNING") as logs:
+            result = main.fetch_dxspots(band="20m", mode="FT8", db=Mock())
+            self.assertEqual(result["warning"], "Aggiornamento POTA non disponibile")
+
+        self.assertIn(detail, "\n".join(logs.output))
+        self.assertEqual(result["status"], "ok")
+        self.assertTrue(result["cached"])
+        self.assertTrue(result["stale"])
+        self.assertGreaterEqual(result["cache_age_seconds"], 30)
+        self.assertEqual(result["spots_found"], 1)
+        self.assertEqual(result["spots"][0]["call"], "TEST1")
+        self.assertEqual(result["timestamp"], result["data_timestamp"])
+        get.assert_called_once()
+
     def test_manual_qso_can_be_edited_and_deleted_but_technical_rows_cannot(self) -> None:
         engine = create_engine("sqlite:///:memory:")
         main.Base.metadata.create_all(engine)
