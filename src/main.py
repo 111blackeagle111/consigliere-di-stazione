@@ -360,7 +360,8 @@ def ask_rag(instruction: str, current_data: str) -> Optional[str]:
             timeout=SWLBOT_RAG_TIMEOUT,
         )
         response.raise_for_status()
-        response_text = response.json().get("response")
+        payload = response.json()
+        response_text = payload.get("response") if isinstance(payload, dict) else None
         if not isinstance(response_text, str) or not response_text.strip():
             raise ValueError("risposta swlbot RAG vuota o non valida")
         return response_text.strip()
@@ -407,7 +408,9 @@ def ask_direct_llm(instruction: str, current_data: str) -> Optional[str]:
             timeout=DIRECT_LLM_TIMEOUT,
         )
         response.raise_for_status()
-        response_text = response.json().get("message", {}).get("content")
+        payload = response.json()
+        message = payload.get("message") if isinstance(payload, dict) else None
+        response_text = message.get("content") if isinstance(message, dict) else None
         if not isinstance(response_text, str) or not response_text.strip():
             raise ValueError("risposta LLM diretto vuota o non valida")
         return response_text.strip()
@@ -423,7 +426,7 @@ UNSUPPORTED_LIVE_CLAIMS = (
     r"evita(?:re)?\s+(?:le\s+|i\s+)?bande",
 )
 FREQUENCY_CLAIM_PATTERN = re.compile(
-    r"(?<!\w)\d+(?:[.,]\d+)?\s*(?:mhz|khz|hz)\b", re.IGNORECASE
+    r"(?<!\w)(?<!\d[.,])(\d+(?:[.,]\d+)*)\s*(mhz|khz|hz)\b", re.IGNORECASE
 )
 
 
@@ -431,11 +434,15 @@ def find_unsupported_advice_claim(response_text: str, current_data: str) -> Opti
     """Return the first real-time claim not grounded in the supplied live data."""
     response_lower = response_text.lower()
     data_lower = current_data.lower()
-    for frequency in FREQUENCY_CLAIM_PATTERN.findall(response_text):
-        normalized = re.sub(r"\s+", "", frequency.lower().replace(",", "."))
-        normalized_data = re.sub(r"\s+", "", data_lower.replace(",", "."))
-        if normalized not in normalized_data:
-            return f"frequenza non presente nei dati correnti: {frequency}"
+    data_frequencies = {
+        (number.replace(",", "."), unit)
+        for number, unit in FREQUENCY_CLAIM_PATTERN.findall(data_lower)
+        if number.count(".") + number.count(",") <= 1
+    }
+    for match in FREQUENCY_CLAIM_PATTERN.finditer(response_text):
+        number, unit = match.groups()
+        if (number.replace(",", "."), unit.lower()) not in data_frequencies:
+            return f"frequenza non presente nei dati correnti: {match.group(0)}"
     for pattern in UNSUPPORTED_LIVE_CLAIMS:
         match = re.search(pattern, response_lower)
         if match and not re.search(pattern, data_lower):

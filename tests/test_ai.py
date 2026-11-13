@@ -120,6 +120,26 @@ class RagClientTests(unittest.TestCase):
         self.assertIsNone(main.ask_rag("Cosa ascolto?", "K-index: 2"))
 
     @patch("src.main.requests.post")
+    def test_ask_rag_rejects_non_object_json(self, post: Mock) -> None:
+        for payload in ([], "risposta", None):
+            with self.subTest(payload=payload):
+                post.return_value.json.return_value = payload
+                with self.assertLogs(main.logger, level="WARNING"):
+                    self.assertIsNone(main.ask_rag("Cosa ascolto?", "K-index: 2"))
+
+    @patch("src.main.requests.post")
+    def test_invalid_model_responses_reach_rules_fallback(self, post: Mock) -> None:
+        for payload in ([], {"message": None}, {"message": "risposta"}, {"message": []}):
+            with self.subTest(payload=payload):
+                rag_response = Mock()
+                rag_response.json.return_value = []
+                direct_response = Mock()
+                direct_response.json.return_value = payload
+                post.side_effect = [rag_response, direct_response]
+                with self.assertLogs(main.logger, level="WARNING"):
+                    self.assertEqual(main.ask_ai("Cosa ascolto?", "K-index: 2"), (None, "rules"))
+
+    @patch("src.main.requests.post")
     def test_direct_llm_uses_local_qwen_chat_api(self, post: Mock) -> None:
         response = Mock()
         response.json.return_value = {"message": {"content": "  Condizioni favorevoli.  "}}
@@ -171,6 +191,18 @@ class RagClientTests(unittest.TestCase):
             "Gli spot su 20m indicano attività osservata, non un'apertura garantita.",
             current_data,
         ))
+
+    def test_advice_guard_matches_whole_normalized_frequencies(self) -> None:
+        data = "Spot su 14,074 MHz e 14 MHz"
+        for response in (
+            "Prova 4 MHz.",
+            "Prova 074 MHz.",
+            "Prova 14.074,5 kHz.",
+            "Prova 14,074.5 kHz.",
+        ):
+            with self.subTest(response=response):
+                self.assertIsNotNone(main.find_unsupported_advice_claim(response, data))
+        self.assertIsNone(main.find_unsupported_advice_claim("Prova 14.074MHz.", data))
 
     @patch("src.main.ask_direct_llm", return_value="Attività POTA osservata su 20m.")
     @patch("src.main.ask_rag", return_value="Evita le bande sopra 15 MHz per la MUF.")
