@@ -23,6 +23,7 @@ import sqlite3
 import sys
 import tempfile
 import threading
+import unicodedata
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -983,8 +984,16 @@ def csv_rows(db: Session):
         yield output.getvalue()
 
 
+ADIF_SUBMODE_PARENTS = {"FT4": "MFSK", "PSK31": "PSK"}
+
+
 def adif_field(name: str, value) -> str:
     text = "" if value is None else str(value)
+    text = "".join(
+        char if " " <= char <= "~" else " " if char.isspace() else "?"
+        for char in unicodedata.normalize("NFKD", text)
+        if not unicodedata.category(char).startswith("M")
+    )
     return f"<{name}:{len(text)}>{text}" if text else ""
 
 
@@ -1000,12 +1009,15 @@ def adif_rows(db: Session):
         .yield_per(500)
     ):
         utc_value = local_timestamp_to_utc(qso.timestamp)
+        mode = (qso.mode or "").upper()
+        parent_mode = ADIF_SUBMODE_PARENTS.get(mode)
         fields = [
             adif_field("CALL", qso.call_sign),
             adif_field("QSO_DATE", utc_value.strftime("%Y%m%d") if utc_value else ""),
             adif_field("TIME_ON", utc_value.strftime("%H%M%S") if utc_value else ""),
             adif_field("BAND", get_band(qso.frequency) if get_band(qso.frequency) in BAND_RANGES else ""),
-            adif_field("MODE", qso.mode),
+            adif_field("MODE", parent_mode or qso.mode),
+            adif_field("SUBMODE", mode if parent_mode else ""),
             adif_field("FREQ", f"{qso.frequency:.6f}".rstrip("0").rstrip(".")),
             adif_field("RST_RCVD", qso.rst_received),
             adif_field("GRIDSQUARE", qso.locator),
@@ -1029,7 +1041,7 @@ def export_qso_adif(db: Session = Depends(get_db)):
     filename = f"consigliere-qso-{datetime.now().strftime('%Y%m%d-%H%M%S')}.adi"
     return StreamingResponse(
         adif_rows(db),
-        media_type="text/plain; charset=utf-8",
+        media_type="text/plain; charset=us-ascii",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 

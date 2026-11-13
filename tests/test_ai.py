@@ -642,6 +642,42 @@ class RagClientTests(unittest.TestCase):
         finally:
             db.close()
 
+    def test_adi_export_uses_ascii_and_preserves_original_notes(self) -> None:
+        engine = create_engine("sqlite:///:memory:")
+        self.addCleanup(engine.dispose)
+        main.Base.metadata.create_all(engine)
+        notes = "città\n東京"
+        with sessionmaker(bind=engine)() as db:
+            qso = main.QSO(frequency=14.074, mode="FT8", call_sign="EXPORT1", notes=notes)
+            db.add(qso)
+            db.commit()
+
+            adif_text = "".join(main.adif_rows(db))
+
+            self.assertTrue(adif_text.isascii())
+            self.assertIn("<COMMENT:8>citta ??<EOR>", adif_text)
+            self.assertIn("<MODE:3>FT8", adif_text)
+            self.assertNotIn("<SUBMODE:", adif_text)
+            db.refresh(qso)
+            self.assertEqual(qso.notes, notes)
+            self.assertIn(notes, "".join(main.csv_rows(db)))
+
+    def test_adi_export_maps_ft4_and_psk31_to_submodes(self) -> None:
+        engine = create_engine("sqlite:///:memory:")
+        self.addCleanup(engine.dispose)
+        main.Base.metadata.create_all(engine)
+        with sessionmaker(bind=engine)() as db:
+            db.add_all([
+                main.QSO(frequency=14.080, mode="FT4", call_sign="EXPORT1"),
+                main.QSO(frequency=14.070, mode="PSK31", call_sign="EXPORT2"),
+            ])
+            db.commit()
+
+            adif_text = "".join(main.adif_rows(db))
+
+        self.assertIn("<MODE:4>MFSK<SUBMODE:3>FT4", adif_text)
+        self.assertIn("<MODE:3>PSK<SUBMODE:5>PSK31", adif_text)
+
     def test_database_backup_is_valid_and_contains_records(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "source.db"
