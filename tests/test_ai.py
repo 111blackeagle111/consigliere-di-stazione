@@ -120,6 +120,26 @@ class RagClientTests(unittest.TestCase):
         self.assertIsNone(main.ask_rag("Cosa ascolto?", "K-index: 2"))
 
     @patch("src.main.requests.post")
+    def test_ask_rag_rejects_non_object_json(self, post: Mock) -> None:
+        for payload in ([], "risposta", None):
+            with self.subTest(payload=payload):
+                post.return_value.json.return_value = payload
+                with self.assertLogs(main.logger, level="WARNING"):
+                    self.assertIsNone(main.ask_rag("Cosa ascolto?", "K-index: 2"))
+
+    @patch("src.main.requests.post")
+    def test_invalid_model_responses_reach_rules_fallback(self, post: Mock) -> None:
+        for payload in ([], {"message": None}, {"message": "risposta"}, {"message": []}):
+            with self.subTest(payload=payload):
+                rag_response = Mock()
+                rag_response.json.return_value = []
+                direct_response = Mock()
+                direct_response.json.return_value = payload
+                post.side_effect = [rag_response, direct_response]
+                with self.assertLogs(main.logger, level="WARNING"):
+                    self.assertEqual(main.ask_ai("Cosa ascolto?", "K-index: 2"), (None, "rules"))
+
+    @patch("src.main.requests.post")
     def test_direct_llm_uses_local_qwen_chat_api(self, post: Mock) -> None:
         response = Mock()
         response.json.return_value = {"message": {"content": "  Condizioni favorevoli.  "}}
@@ -171,6 +191,18 @@ class RagClientTests(unittest.TestCase):
             "Gli spot su 20m indicano attività osservata, non un'apertura garantita.",
             current_data,
         ))
+
+    def test_advice_guard_matches_whole_normalized_frequencies(self) -> None:
+        data = "Spot su 14,074 MHz e 14 MHz"
+        for response in (
+            "Prova 4 MHz.",
+            "Prova 074 MHz.",
+            "Prova 14.074,5 kHz.",
+            "Prova 14,074.5 kHz.",
+        ):
+            with self.subTest(response=response):
+                self.assertIsNotNone(main.find_unsupported_advice_claim(response, data))
+        self.assertIsNone(main.find_unsupported_advice_claim("Prova 14.074MHz.", data))
 
     @patch("src.main.ask_direct_llm", return_value="Attività POTA osservata su 20m.")
     @patch("src.main.ask_rag", return_value="Evita le bande sopra 15 MHz per la MUF.")
@@ -537,6 +569,32 @@ class RagClientTests(unittest.TestCase):
         self.assertIn("data_timestamp", result)
         self.assertEqual(result["count"], 1)
 
+    @patch("src.main.get_operator_locator", return_value="")
+    @patch("src.main.requests.get")
+    def test_dxspots_returns_stale_data_without_exception_details(
+        self, get: Mock, get_locator: Mock
+    ) -> None:
+        with patch("src.main.time.monotonic", return_value=time.monotonic() - 31):
+            main.pota_data_cache.set([
+                {"frequency": "14074", "mode": "FT8", "activator": "TEST1"},
+            ])
+        detail = "Errore di connessione a proxy.internal"
+        get.side_effect = requests.ConnectionError(detail)
+
+        with self.assertLogs(main.logger, level="WARNING") as logs:
+            result = main.fetch_dxspots(band="20m", mode="FT8", db=Mock())
+            self.assertEqual(result["warning"], "Aggiornamento POTA non disponibile")
+
+        self.assertIn(detail, "\n".join(logs.output))
+        self.assertEqual(result["status"], "ok")
+        self.assertTrue(result["cached"])
+        self.assertTrue(result["stale"])
+        self.assertGreaterEqual(result["cache_age_seconds"], 30)
+        self.assertEqual(result["spots_found"], 1)
+        self.assertEqual(result["spots"][0]["call"], "TEST1")
+        self.assertEqual(result["timestamp"], result["data_timestamp"])
+        get.assert_called_once()
+
     def test_manual_qso_can_be_edited_and_deleted_but_technical_rows_cannot(self) -> None:
         engine = create_engine("sqlite:///:memory:")
         main.Base.metadata.create_all(engine)
@@ -583,6 +641,42 @@ class RagClientTests(unittest.TestCase):
             self.assertNotIn("SMART_ALERT", adif_text)
         finally:
             db.close()
+
+    def test_adi_export_uses_ascii_and_preserves_original_notes(self) -> None:
+        engine = create_engine("sqlite:///:memory:")
+        self.addCleanup(engine.dispose)
+        main.Base.metadata.create_all(engine)
+        notes = "città\n東京"
+        with sessionmaker(bind=engine)() as db:
+            qso = main.QSO(frequency=14.074, mode="FT8", call_sign="EXPORT1", notes=notes)
+            db.add(qso)
+            db.commit()
+
+            adif_text = "".join(main.adif_rows(db))
+
+            self.assertTrue(adif_text.isascii())
+            self.assertIn("<COMMENT:8>citta ??<EOR>", adif_text)
+            self.assertIn("<MODE:3>FT8", adif_text)
+            self.assertNotIn("<SUBMODE:", adif_text)
+            db.refresh(qso)
+            self.assertEqual(qso.notes, notes)
+            self.assertIn(notes, "".join(main.csv_rows(db)))
+
+    def test_adi_export_maps_ft4_and_psk31_to_submodes(self) -> None:
+        engine = create_engine("sqlite:///:memory:")
+        self.addCleanup(engine.dispose)
+        main.Base.metadata.create_all(engine)
+        with sessionmaker(bind=engine)() as db:
+            db.add_all([
+                main.QSO(frequency=14.080, mode="FT4", call_sign="EXPORT1"),
+                main.QSO(frequency=14.070, mode="PSK31", call_sign="EXPORT2"),
+            ])
+            db.commit()
+
+            adif_text = "".join(main.adif_rows(db))
+
+        self.assertIn("<MODE:4>MFSK<SUBMODE:3>FT4", adif_text)
+        self.assertIn("<MODE:3>PSK<SUBMODE:5>PSK31", adif_text)
 
     def test_database_backup_is_valid_and_contains_records(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

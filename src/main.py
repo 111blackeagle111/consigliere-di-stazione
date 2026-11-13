@@ -23,6 +23,7 @@ import sqlite3
 import sys
 import tempfile
 import threading
+import unicodedata
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -360,7 +361,8 @@ def ask_rag(instruction: str, current_data: str) -> Optional[str]:
             timeout=SWLBOT_RAG_TIMEOUT,
         )
         response.raise_for_status()
-        response_text = response.json().get("response")
+        payload = response.json()
+        response_text = payload.get("response") if isinstance(payload, dict) else None
         if not isinstance(response_text, str) or not response_text.strip():
             raise ValueError("risposta swlbot RAG vuota o non valida")
         return response_text.strip()
@@ -407,7 +409,9 @@ def ask_direct_llm(instruction: str, current_data: str) -> Optional[str]:
             timeout=DIRECT_LLM_TIMEOUT,
         )
         response.raise_for_status()
-        response_text = response.json().get("message", {}).get("content")
+        payload = response.json()
+        message = payload.get("message") if isinstance(payload, dict) else None
+        response_text = message.get("content") if isinstance(message, dict) else None
         if not isinstance(response_text, str) or not response_text.strip():
             raise ValueError("risposta LLM diretto vuota o non valida")
         return response_text.strip()
@@ -423,7 +427,7 @@ UNSUPPORTED_LIVE_CLAIMS = (
     r"evita(?:re)?\s+(?:le\s+|i\s+)?bande",
 )
 FREQUENCY_CLAIM_PATTERN = re.compile(
-    r"(?<!\w)\d+(?:[.,]\d+)?\s*(?:mhz|khz|hz)\b", re.IGNORECASE
+    r"(?<!\w)(?<!\d[.,])(\d+(?:[.,]\d+)*)\s*(mhz|khz|hz)\b", re.IGNORECASE
 )
 
 
@@ -431,11 +435,15 @@ def find_unsupported_advice_claim(response_text: str, current_data: str) -> Opti
     """Return the first real-time claim not grounded in the supplied live data."""
     response_lower = response_text.lower()
     data_lower = current_data.lower()
-    for frequency in FREQUENCY_CLAIM_PATTERN.findall(response_text):
-        normalized = re.sub(r"\s+", "", frequency.lower().replace(",", "."))
-        normalized_data = re.sub(r"\s+", "", data_lower.replace(",", "."))
-        if normalized not in normalized_data:
-            return f"frequenza non presente nei dati correnti: {frequency}"
+    data_frequencies = {
+        (number.replace(",", "."), unit)
+        for number, unit in FREQUENCY_CLAIM_PATTERN.findall(data_lower)
+        if number.count(".") + number.count(",") <= 1
+    }
+    for match in FREQUENCY_CLAIM_PATTERN.finditer(response_text):
+        number, unit = match.groups()
+        if (number.replace(",", "."), unit.lower()) not in data_frequencies:
+            return f"frequenza non presente nei dati correnti: {match.group(0)}"
     for pattern in UNSUPPORTED_LIVE_CLAIMS:
         match = re.search(pattern, response_lower)
         if match and not re.search(pattern, data_lower):
@@ -638,16 +646,17 @@ def get_pota_payload(force_refresh: bool = False) -> tuple[list, dict]:
             "data_timestamp": datetime.now().astimezone().isoformat(),
             "stale": False,
         }
-    except (requests.RequestException, ValueError, TypeError) as exc:
+    except (requests.RequestException, ValueError, TypeError):
         stale = pota_data_cache.get(allow_stale=True)
         if stale:
+            logger.warning("Aggiornamento POTA fallito, uso l'ultimo dato valido", exc_info=True)
             value, age = stale
             return value, {
                 "cached": True,
                 "cache_age_seconds": round(age, 1),
                 "data_timestamp": (datetime.now().astimezone() - timedelta(seconds=age)).isoformat(),
                 "stale": True,
-                "warning": str(exc),
+                "warning": "Aggiornamento POTA non disponibile",
             }
         raise
 
@@ -975,8 +984,16 @@ def csv_rows(db: Session):
         yield output.getvalue()
 
 
+ADIF_SUBMODE_PARENTS = {"FT4": "MFSK", "PSK31": "PSK"}
+
+
 def adif_field(name: str, value) -> str:
     text = "" if value is None else str(value)
+    text = "".join(
+        char if " " <= char <= "~" else " " if char.isspace() else "?"
+        for char in unicodedata.normalize("NFKD", text)
+        if not unicodedata.category(char).startswith("M")
+    )
     return f"<{name}:{len(text)}>{text}" if text else ""
 
 
@@ -992,12 +1009,15 @@ def adif_rows(db: Session):
         .yield_per(500)
     ):
         utc_value = local_timestamp_to_utc(qso.timestamp)
+        mode = (qso.mode or "").upper()
+        parent_mode = ADIF_SUBMODE_PARENTS.get(mode)
         fields = [
             adif_field("CALL", qso.call_sign),
             adif_field("QSO_DATE", utc_value.strftime("%Y%m%d") if utc_value else ""),
             adif_field("TIME_ON", utc_value.strftime("%H%M%S") if utc_value else ""),
             adif_field("BAND", get_band(qso.frequency) if get_band(qso.frequency) in BAND_RANGES else ""),
-            adif_field("MODE", qso.mode),
+            adif_field("MODE", parent_mode or qso.mode),
+            adif_field("SUBMODE", mode if parent_mode else ""),
             adif_field("FREQ", f"{qso.frequency:.6f}".rstrip("0").rstrip(".")),
             adif_field("RST_RCVD", qso.rst_received),
             adif_field("GRIDSQUARE", qso.locator),
@@ -1021,7 +1041,7 @@ def export_qso_adif(db: Session = Depends(get_db)):
     filename = f"consigliere-qso-{datetime.now().strftime('%Y%m%d-%H%M%S')}.adi"
     return StreamingResponse(
         adif_rows(db),
-        media_type="text/plain; charset=utf-8",
+        media_type="text/plain; charset=us-ascii",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
