@@ -12,6 +12,8 @@ Non richiede account o abbonamenti. Per usare il registro, consultare NOAA e POT
 
 ## Interfaccia
 
+Nelle build con il selettore **IT / EN**, puoi scegliere la lingua in cima alla dashboard. Il browser ricorda la scelta. Il servizio RAG attuale risponde in italiano, quindi in inglese i consigli passano da Qwen o dalle regole integrate.
+
 ![Dashboard del Consigliere di Stazione](docs/screenshot.png)
 
 La dashboard raccoglie il quaderno di bordo e i dati operativi senza nascondere le funzioni principali nei menu. Gli ultimi dieci QSO rimangono subito visibili; il resto del registro si apre quando serve.

@@ -170,6 +170,10 @@ app = FastAPI(title="Consigliere di Stazione", version=APP_VERSION)
 templates = Jinja2Templates(directory=str(get_base_path() / "templates"))
 
 
+def translator(lang: str):
+    return lambda italian, english: english if lang == "en" else italian
+
+
 def request_has_safe_origin(request: Request) -> bool:
     """Reject browser cross-site writes while keeping CLI/local clients usable."""
     if request.headers.get("sec-fetch-site", "").lower() == "cross-site":
@@ -333,14 +337,20 @@ def compass_direction(bearing: float) -> str:
     return directions[int((bearing + 22.5) // 45) % 8]
 
 
-def nearest_spots_summary(pota_data: dict, limit: int = 3) -> str:
+def nearest_spots_summary(pota_data: dict, limit: int = 3, lang: str = "it") -> str:
+    t = translator(lang)
     parts = []
     for spot in pota_data.get("nearest_spots", [])[:limit]:
-        parts.append(
-            f"{spot.get('call', '???')} su {spot.get('band', '?')} a "
-            f"{spot.get('distance_km', '?')} km verso {spot.get('direction', '?')} "
-            f"(locator {spot.get('grid', '?')})"
-        )
+        direction = spot.get("direction", "?")
+        english_direction = {"SO": "SW", "O": "W", "NO": "NW"}.get(direction, direction)
+        call = spot.get("call", "???")
+        band = spot.get("band", "?")
+        distance = spot.get("distance_km", "?")
+        grid = spot.get("grid", "?")
+        parts.append(t(
+            f"{call} su {band} a {distance} km verso {direction} (locator {grid})",
+            f"{call} on {band}, {distance} km towards {english_direction} (locator {grid})",
+        ))
     return "; ".join(parts)
 
 SWLBOT_RAG_URL = os.getenv("SWLBOT_RAG_URL", "http://127.0.0.1:8081/api/advice")
@@ -371,9 +381,10 @@ def ask_rag(instruction: str, current_data: str) -> Optional[str]:
         return None
 
 
-def ask_direct_llm(instruction: str, current_data: str) -> Optional[str]:
+def ask_direct_llm(instruction: str, current_data: str, lang: str = "it") -> Optional[str]:
     """Fallback locale senza retrieval: riformula le regole, non crea analisi nuove."""
-    system = (
+    t = translator(lang)
+    system = t(
         "Sei un redattore tecnico italiano. Devi soltanto riformulare la VALUTAZIONE "
         "DETERMINISTICA fornita dall'app, senza aggiungere nuove conclusioni. Non introdurre "
         "bande, frequenze, stazioni, aperture, direzioni, orari, strumenti o relazioni causali "
@@ -381,17 +392,25 @@ def ask_direct_llm(instruction: str, current_data: str) -> Optional[str]:
         "spot e non scambiare le bande storicamente usate dall'operatore per attivita' radio "
         "corrente. Non presumere che l'utente trasmetta: parla di ascolto salvo indicazione "
         "esplicita contraria. Se la valutazione e' insufficiente, dichiaralo. Segui soltanto i vincoli "
-        "di lunghezza e stile dell'istruzione."
+        "di lunghezza e stile dell'istruzione.",
+        "Respond in English. Restate only the app's rule-based assessment. Do not add bands, "
+        "frequencies, stations, openings, bearings, times, tools or causal claims. Do not infer "
+        "noise from spot counts or mistake the operator's logging habits for live activity. "
+        "Focus on listening unless explicitly told otherwise. Say when the evidence is insufficient. "
+        "Follow the instruction's limits on length and style.",
     )
     marker = "VALUTAZIONE DETERMINISTICA DELL'APP (non contraddire):"
     _, separator, deterministic_guidance = current_data.partition(marker)
     if separator:
         source_text = deterministic_guidance.strip()
     else:
-        source_text = "Dati insufficienti per formulare una valutazione deterministica."
-    prompt = (
-        f"VINCOLI DI STILE:\n{instruction}\n\n"
-        f"VALUTAZIONE DETERMINISTICA DA RIFORMULARE:\n{source_text}"
+        source_text = t(
+            "Dati insufficienti per formulare una valutazione deterministica.",
+            "There is not enough data for a rule-based assessment.",
+        )
+    prompt = t(
+        f"VINCOLI DI STILE:\n{instruction}\n\nVALUTAZIONE DETERMINISTICA DA RIFORMULARE:\n{source_text}",
+        f"STYLE CONSTRAINTS:\n{instruction}\n\nRULE-BASED ASSESSMENT TO RESTATE:\n{source_text}",
     )
     try:
         response = requests.post(
@@ -425,6 +444,10 @@ UNSUPPORTED_LIVE_CLAIMS = (
     r"\bskip\b", r"\bfading\b", r"greyline",
     r"propagazione\s+(?:è|e')\s+(?:stabile|ottimale|eccellente|garantita)",
     r"evita(?:re)?\s+(?:le\s+|i\s+)?bande",
+    r"\bnois(?:e|y)\b", r"\bd[ -](?:layer|region)\b", r"\babsorption\b",
+    r"\b(?:stable|optimal|excellent|guaranteed) propagation\b",
+    r"\bpropagation (?:is|will be) (?:stable|optimal|excellent|guaranteed)\b",
+    r"\bavoid (?:the )?bands?\b",
 )
 FREQUENCY_CLAIM_PATTERN = re.compile(
     r"(?<!\w)(?<!\d[.,])(\d+(?:[.,]\d+)*)\s*(mhz|khz|hz)\b", re.IGNORECASE
@@ -451,10 +474,11 @@ def find_unsupported_advice_claim(response_text: str, current_data: str) -> Opti
     return None
 
 
-def ask_ai(instruction: str, current_data: str) -> tuple[Optional[str], str]:
+def ask_ai(instruction: str, current_data: str, lang: str = "it") -> tuple[Optional[str], str]:
     rag_rejected = False
     direct_rejected = False
-    rag_response = ask_rag(instruction, current_data)
+    # The current swlbot RAG service requires Italian in its system prompt.
+    rag_response = ask_rag(instruction, current_data) if lang != "en" else None
     if rag_response:
         unsupported = find_unsupported_advice_claim(rag_response, current_data)
         if not unsupported:
@@ -462,7 +486,7 @@ def ask_ai(instruction: str, current_data: str) -> tuple[Optional[str], str]:
         logger.warning("Risposta swlbot RAG scartata: %s", unsupported)
         rag_rejected = True
 
-    direct_response = ask_direct_llm(instruction, current_data)
+    direct_response = ask_direct_llm(instruction, current_data, lang)
     if direct_response:
         unsupported = find_unsupported_advice_claim(direct_response, current_data)
         if not unsupported:
@@ -752,7 +776,8 @@ def get_pota_spots(
 # EVALUATION & AI
 # ============================================================
 
-def evaluate_conditions(solar_data: dict, pota_data: dict) -> dict:
+def evaluate_conditions(solar_data: dict, pota_data: dict, lang: str = "it") -> dict:
+    t = translator(lang)
     score = 0
     details = []
     warnings = []
@@ -764,24 +789,24 @@ def evaluate_conditions(solar_data: dict, pota_data: dict) -> dict:
     if k is not None:
         if k < SolarThresholds.K_INDEX_GOOD:
             score += 40
-            opportunities.append(f"Campo geomagnetico quieto (K {k})")
+            opportunities.append(t(f"Campo geomagnetico quieto (K {k})", f"Quiet geomagnetic field (K {k})"))
         elif k < SolarThresholds.K_INDEX_FAIR:
             score += 20
-            details.append(f"Campo geomagnetico moderato (K {k})")
+            details.append(t(f"Campo geomagnetico moderato (K {k})", f"Moderate geomagnetic activity (K {k})"))
         else:
             score -= 20
-            warnings.append(f"K-index disturbato ({k})")
+            warnings.append(t(f"K-index disturbato ({k})", f"Elevated K-index ({k})"))
     
     if sfi is not None:
         if sfi > SolarThresholds.SFI_GOOD:
             score += 40
-            opportunities.append(f"SFI alto ({sfi})")
+            opportunities.append(t(f"SFI alto ({sfi})", f"High SFI ({sfi})"))
         elif sfi > SolarThresholds.SFI_FAIR:
             score += 20
-            details.append(f"SFI discreto ({sfi})")
+            details.append(t(f"SFI discreto ({sfi})", f"Moderate SFI ({sfi})"))
         else:
             score -= 10
-            warnings.append(f"SFI basso ({sfi})")
+            warnings.append(t(f"SFI basso ({sfi})", f"Low SFI ({sfi})"))
     
     by_band = pota_data.get("by_band", {})
     total_activity = sum(by_band.values())
@@ -789,20 +814,20 @@ def evaluate_conditions(solar_data: dict, pota_data: dict) -> dict:
     
     if total_activity > 50:
         score += 20
-        opportunities.append(f"Alta attività POTA ({total_activity} spot)")
+        opportunities.append(t(f"Alta attività POTA ({total_activity} spot)", f"High POTA activity ({total_activity} spots)"))
     elif total_activity > 20:
         score += 10
-        details.append(f"Attività moderata ({total_activity} spot)")
+        details.append(t(f"Attività moderata ({total_activity} spot)", f"Moderate POTA activity ({total_activity} spots)"))
     
     if by_band.get("10m", 0) > 5 or by_band.get("6m", 0) > 0:
-        opportunities.append("Attività POTA osservata sulle bande alte")
+        opportunities.append(t("Attività POTA osservata sulle bande alte", "POTA activity observed on the higher bands"))
         score += 15
 
     level = (
-        "operatività elevata" if score >= 70 else
-        "operatività buona" if score >= 50 else
-        "operatività moderata" if score >= 30 else
-        "operatività limitata"
+        t("operatività elevata", "strong operating conditions") if score >= 70 else
+        t("operatività buona", "good operating conditions") if score >= 50 else
+        t("operatività moderata", "moderate operating conditions") if score >= 30 else
+        t("operatività limitata", "limited operating conditions")
     )
     
     return {
@@ -816,7 +841,8 @@ def evaluate_conditions(solar_data: dict, pota_data: dict) -> dict:
         "solar": {"k": k, "sfi": sfi}
     }
 
-def generate_smart_alert(eval_data: dict, solar_data: dict, pota_data: dict) -> dict:
+def generate_smart_alert(eval_data: dict, solar_data: dict, pota_data: dict, lang: str = "it") -> Optional[dict]:
+    t = translator(lang)
     score = eval_data["score"]
     level = eval_data["level"]
     
@@ -826,21 +852,24 @@ def generate_smart_alert(eval_data: dict, solar_data: dict, pota_data: dict) -> 
     ora = datetime.now().hour
     periodo = "mattina" if 6 <= ora < 12 else "pomeriggio" if 12 <= ora < 18 else "sera" if 18 <= ora < 23 else "notte"
     
-    instruction = (
+    instruction = t(
         "Genera un breve messaggio di alert sulle condizioni di propagazione attuali. "
-        "Usa un tono professionale ma appassionato, italiano corretto, massimo 3 frasi "
+        "Usa un tono professionale ma appassionato, massimo 3 frasi "
         "e 280 caratteri. Non indicare frequenze o stazioni specifiche che non compaiono "
         "nei dati correnti. Gli spot POTA indicano attività, non dimostrano aperture, DX, "
         "qualità della propagazione o basso rumore. Non convertire i nomi delle bande in "
-        "frequenze numeriche e non presentare le condizioni come ottimali o garantite."
+        "frequenze numeriche e non presentare le condizioni come ottimali o garantite.",
+        "Write a short propagation alert in English, no more than three sentences and 280 characters. "
+        "Use only the current observations. POTA spots show activity, and the alert must avoid "
+        "unsupported claims about openings, DX or noise.",
     )
-    geo_summary = nearest_spots_summary(pota_data, limit=2)
+    geo_summary = nearest_spots_summary(pota_data, limit=2, lang=lang)
     fallback_parts = eval_data["opportunities"] + eval_data["details"] + eval_data["warnings"]
     if geo_summary:
         fallback_parts = fallback_parts[:2] + [
-            f"Dal QTH {pota_data.get('operator_locator')}: {geo_summary}."
+            t(f"Dal QTH {pota_data.get('operator_locator')}: {geo_summary}.", f"From QTH {pota_data.get('operator_locator')}: {geo_summary}.")
         ]
-    rule_guidance = " ".join(fallback_parts[:3]) or f"Condizioni {level}: score {score}/100."
+    rule_guidance = " ".join(fallback_parts[:3]) or t(f"Condizioni {level}: score {score}/100.", f"{level.capitalize()}: score {score}/100.")
     rule_guidance = rule_guidance[:280]
     current_data = f"""
 - Condizioni: {level.upper()} (score {score}/100)
@@ -858,7 +887,7 @@ VALUTAZIONE DETERMINISTICA DELL'APP (non contraddire):
 {rule_guidance}
 """.strip()
 
-    ai_response, source = ask_ai(instruction, current_data)
+    ai_response, source = ask_ai(instruction, current_data, lang)
     if not ai_response:
         ai_response = rule_guidance
         if source not in {"rules", "rules-guarded"}:
@@ -878,14 +907,18 @@ VALUTAZIONE DETERMINISTICA DELL'APP (non contraddire):
 # ============================================================
 
 @app.get("/")
-def dashboard(request: Request, db: Session = Depends(get_db)):
+def dashboard(request: Request, db: Session = Depends(get_db), lang: str = ""):
+    selected = lang if lang in {"it", "en"} else request.cookies.get("consigliere_language")
+    selected = "en" if selected == "en" else "it"
     logs = db.query(QSO).filter(QSO.frequency > 0).order_by(QSO.timestamp.desc()).limit(10).all()
     total, bands, _ = get_qso_statistics(db)
     
     solar_logs = db.query(QSO).filter(QSO.mode == "PROP").order_by(QSO.timestamp.desc()).first()
     latest_alert = db.query(QSO).filter(QSO.mode == "ALERT").order_by(QSO.timestamp.desc()).first()
     
-    return templates.TemplateResponse(request, "index.html", {
+    response = templates.TemplateResponse(request, "index.html", {
+        "lang": selected,
+        "t": translator(selected),
         "logs": logs,
         "total": total,
         "bands": bands,
@@ -894,6 +927,9 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
         "callsign": get_callsign(db),
         "operator_locator": get_operator_locator(db),
     })
+    if lang in {"it", "en"}:
+        response.set_cookie("consigliere_language", selected, max_age=365 * 24 * 60 * 60, httponly=True)
+    return response
 
 
 @app.get("/qso/history")
@@ -1126,29 +1162,30 @@ def delete_qso(qso_id: int, db: Session = Depends(get_db)):
     return {"status": "ok", "id": qso_id}
 
 @app.get("/fetch/solar")
-def fetch_solar(db: Session = Depends(get_db)):
+def fetch_solar(db: Session = Depends(get_db), lang: str = "it"):
+    t = translator(lang)
     solar = get_solar_data()
     
     if solar.get("status") != "ok":
         return {"status": "error", "message": solar.get("error")}
     
     note = f"K: {solar.get('k_index')} | SFI: {solar.get('sfi')} | "
-    interpretation = "Dati aggiornati"
+    interpretation = t("Dati aggiornati", "Data updated")
     
     try:
         k = float(solar.get('k_index', 0))
         if k < 3:
             note += "Campo geomagnetico quieto"
-            interpretation = (
-                f"K-index {k}: campo geomagnetico quieto; da solo non indica "
-                "quali bande siano aperte."
+            interpretation = t(
+                f"K-index {k}: campo geomagnetico quieto; da solo non indica quali bande siano aperte.",
+                f"K-index {k}: quiet geomagnetic field. Check received signals for band openings.",
             )
         elif k < 5:
             note += "Campo geomagnetico moderato"
-            interpretation = f"K-index {k}: attività geomagnetica moderata."
+            interpretation = t(f"K-index {k}: attività geomagnetica moderata.", f"K-index {k}: moderate geomagnetic activity.")
         else:
             note += "Campo geomagnetico disturbato"
-            interpretation = f"K-index {k}: campo geomagnetico disturbato; verifica i segnali reali."
+            interpretation = t(f"K-index {k}: campo geomagnetico disturbato; verifica i segnali reali.", f"K-index {k}: disturbed geomagnetic field. Check actual signals.")
     except:
         note += "Dati aggiornati"
     
@@ -1210,7 +1247,7 @@ def fetch_dxspots(band: str = "20m", mode: str = "ALL", db: Session = Depends(ge
     }
 
 @app.get("/alert/check")
-def check_alert_auto(db: Session = Depends(get_db), force: bool = False):
+def check_alert_auto(db: Session = Depends(get_db), force: bool = False, lang: str = "it"):
     solar = get_solar_data()
     if solar.get("status") != "ok":
         return {"status": "error", "message": "Dati solar non disponibili", "error_detail": solar.get("error")}
@@ -1218,7 +1255,7 @@ def check_alert_auto(db: Session = Depends(get_db), force: bool = False):
     pota = get_pota_spots(
         band="ALL", limit=0, operator_locator=get_operator_locator(db)
     )
-    evaluation = evaluate_conditions(solar, pota)
+    evaluation = evaluate_conditions(solar, pota, lang)
     
     if evaluation["score"] < 40 and not force:
         return {
@@ -1228,12 +1265,12 @@ def check_alert_auto(db: Session = Depends(get_db), force: bool = False):
             "details": evaluation
         }
     
-    alert = generate_smart_alert(evaluation, solar, pota)
+    alert = generate_smart_alert(evaluation, solar, pota, lang)
     
     if not alert:
         return {"status": "no_alert", "reason": "Condizioni non rilevanti"}
     
-    content_hash = f"{alert['level']}_{evaluation['score']}_{str(evaluation['top_bands'])}"
+    content_hash = f"{evaluation['score']}_{evaluation['top_bands']}"
     if not force and not alert_cache.should_send("propagation", content_hash):
         return {"status": "cached", "message": "Alert simile già inviato", "last": str(alert_cache.last_alerts.get("propagation", [None])[0])}
     
@@ -1284,12 +1321,12 @@ def alert_history(limit: int = 10, db: Session = Depends(get_db)):
     }
 
 @app.post("/ui/trigger-check")
-def trigger_check_ui(db: Session = Depends(get_db)):
+def trigger_check_ui(db: Session = Depends(get_db), lang: str = "it"):
     """
     Endpoint POST per il bottone "Controlla Ora" dalla UI
     Forza la generazione dell'alert
     """
-    return check_alert_auto(db=db, force=True)
+    return check_alert_auto(db=db, force=True, lang=lang)
 
 @app.get("/ui/alert-stream")
 async def alert_stream():
@@ -1365,29 +1402,30 @@ def debug_pota_raw(limit: int = 3):
     except Exception:
         logger.exception("Errore durante la richiesta diagnostica POTA")
         return {"status": "error", "message": "Dati POTA non disponibili"}
-def generate_rule_based_advice(solar: dict, pota: dict, bands: dict, modes: dict, ora: int) -> str:
+def generate_rule_based_advice(solar: dict, pota: dict, bands: dict, modes: dict, ora: int, lang: str = "it") -> str:
+    t = translator(lang)
     k = solar.get("k_float")
     sfi = solar.get("sfi_float")
-    periodo = "mattina" if 6 <= ora < 12 else "pomeriggio" if 12 <= ora < 18 else "sera" if 18 <= ora < 22 else "notte"
+    periodo = t("notte", "night")
     consigli = []
 
     if k is not None:
         if k < 3:
-            consigli.append(f"K-index basso ({k:.1f}): campo geomagnetico quieto; riduce il rischio di disturbi ma, da solo, non determina quali bande siano aperte.")
+            consigli.append(t(f"K-index basso ({k:.1f}): campo geomagnetico quieto; riduce il rischio di disturbi ma, da solo, non determina quali bande siano aperte.", f"Low K-index ({k:.1f}): the geomagnetic field is quiet. Check received signals to see which bands are open."))
         elif k < 5:
-            consigli.append(f"K-index moderato ({k:.1f}): condizioni potenzialmente variabili; verificare i segnali e gli spot reali prima di scegliere la banda.")
+            consigli.append(t(f"K-index moderato ({k:.1f}): condizioni potenzialmente variabili; verificare i segnali e gli spot reali prima di scegliere la banda.", f"Moderate K-index ({k:.1f}): conditions may vary. Check signals and current spots before choosing a band."))
         else:
-            consigli.append(f"K-index alto ({k:.1f}): possibili disturbi geomagnetici, soprattutto sui percorsi ad alte latitudini; monitorare i segnali reali.")
+            consigli.append(t(f"K-index alto ({k:.1f}): possibili disturbi geomagnetici, soprattutto sui percorsi ad alte latitudini; monitorare i segnali reali.", f"High K-index ({k:.1f}): geomagnetic disturbances are possible, especially on high-latitude paths. Monitor actual signals."))
 
     if sfi is not None:
         if sfi > 150:
-            consigli.append(f"Solar Flux molto alto ({sfi:.0f}): aumenta la probabilità di propagazione sulle bande HF alte, senza garantire aperture o direzioni specifiche.")
+            consigli.append(t(f"Solar Flux molto alto ({sfi:.0f}): aumenta la probabilità di propagazione sulle bande HF alte, senza garantire aperture o direzioni specifiche.", f"Very high solar flux ({sfi:.0f}): the higher HF bands may benefit. Check signals for actual openings and paths."))
         elif sfi > 100:
-            consigli.append(f"Solar Flux buono ({sfi:.0f}): può favorire le bande da 20m a 10m; confermare l'apertura con segnali e spot correnti.")
+            consigli.append(t(f"Solar Flux buono ({sfi:.0f}): può favorire le bande da 20m a 10m; confermare l'apertura con segnali e spot correnti.", f"Good solar flux ({sfi:.0f}): 20m to 10m may benefit. Check signals and current spots for activity."))
         elif sfi > 70:
-            consigli.append(f"Solar Flux nella norma ({sfi:.0f}): non indica da solo una banda migliore; confrontare 20m e 40m con i dati correnti.")
+            consigli.append(t(f"Solar Flux nella norma ({sfi:.0f}): non indica da solo una banda migliore; confrontare 20m e 40m con i dati correnti.", f"Typical solar flux ({sfi:.0f}): compare 20m and 40m using current observations."))
         else:
-            consigli.append(f"Solar Flux basso ({sfi:.0f}): le bande HF alte possono essere meno favorite; verificare 40m e 80m senza considerarle garantite.")
+            consigli.append(t(f"Solar Flux basso ({sfi:.0f}): le bande HF alte possono essere meno favorite; verificare 40m e 80m senza considerarle garantite.", f"Low solar flux ({sfi:.0f}): the higher HF bands may be less favourable. Check actual reception on 40m and 80m."))
 
     pota_count = pota.get("count", 0)
     selected_band = pota.get("band")
@@ -1395,21 +1433,26 @@ def generate_rule_based_advice(solar: dict, pota: dict, bands: dict, modes: dict
     top_bands = sorted(by_band.items(), key=lambda x: x[1], reverse=True)[:2]
     pota_advice = ""
     if pota_count > 0 and selected_band and selected_band != "ALL":
-        pota_advice = (
+        pota_advice = t(
             f"Sono presenti {pota_count} spot POTA correnti su {selected_band}: "
-            "questa è attività osservata, non una misura della qualità di propagazione o ricezione."
+            "questa è attività osservata, non una misura della qualità di propagazione o ricezione.",
+            f"There are {pota_count} current POTA spots on {selected_band}. Spot counts show activity.",
         )
     elif top_bands:
-        band_str = " e ".join(f"{b[0]} ({b[1]} spot)" for b in top_bands)
-        pota_advice = f"Gli spot POTA correnti risultano più numerosi su {band_str}; usare questi conteggi come indicazione di attività, non di propagazione garantita."
+        band_str = t(" e ", " and ").join(
+            f"{band} ({count} {t('spot', 'spot' if count == 1 else 'spots')})" for band, count in top_bands
+        )
+        pota_advice = t(f"Gli spot POTA correnti risultano più numerosi su {band_str}; usare questi conteggi come indicazione di attività, non di propagazione garantita.", f"Most current POTA spots are on {band_str}. The counts show activity.")
     elif pota_count == 0 and ora >= 22:
-        pota_advice = f"Ora di {periodo}: nessuno spot POTA trovato nel filtro corrente; il dato non permette di dedurre l'attività sulle altre bande."
+        pota_advice = t(f"Ora di {periodo}: nessuno spot POTA trovato nel filtro corrente; il dato non permette di dedurre l'attività sulle altre bande.", f"No POTA spots match the current filter during the {periodo}. Other bands may still have activity.")
 
-    geo_summary = nearest_spots_summary(pota, limit=2)
+    geo_summary = nearest_spots_summary(pota, limit=2, lang=lang)
     if geo_summary:
-        geographic_advice = (
+        geographic_advice = t(
             f"Dal QTH {pota.get('operator_locator')}, tra gli spot dotati di locator i più vicini sono: "
-            f"{geo_summary}. Distanze e direzioni sono calcolate dai locator, non stimate dall'IA."
+            f"{geo_summary}. Distanze e direzioni sono calcolate dai locator, non stimate dall'IA.",
+            f"Nearest spots with locators from QTH {pota.get('operator_locator')}: {geo_summary}. "
+            "Distances and directions come from the locators.",
         )
         pota_advice = f"{pota_advice} {geographic_advice}".strip()
     if pota_advice:
@@ -1417,13 +1460,14 @@ def generate_rule_based_advice(solar: dict, pota: dict, bands: dict, modes: dict
 
     if bands:
         banda_preferita = max(bands, key=bands.get)
-        consigli.append(f"Nel tuo storico la banda più registrata è {banda_preferita} ({bands[banda_preferita]} QSO); questo descrive le tue abitudini, non l'attività POTA corrente.")
+        consigli.append(t(f"Nel tuo storico la banda più registrata è {banda_preferita} ({bands[banda_preferita]} QSO); questo descrive le tue abitudini, non l'attività POTA corrente.", f"Your most logged band is {banda_preferita} ({bands[banda_preferita]} QSOs). This reflects your logging history."))
 
-    return "\n".join(f"• {c}" for c in consigli[:4]) if consigli else "Dati insufficienti per generare consigli."
+    return "\n".join(f"• {c}" for c in consigli[:4]) if consigli else t("Dati insufficienti per generare consigli.", "Not enough data to produce advice.")
 
 
 @app.get("/ai/analyze")
-def ai_analyze(db: Session = Depends(get_db)):
+def ai_analyze(db: Session = Depends(get_db), lang: str = "it"):
+    t = translator(lang)
     total_qsos, bands, modes = get_qso_statistics(db)
 
     solar = get_solar_data()
@@ -1439,16 +1483,19 @@ def ai_analyze(db: Session = Depends(get_db)):
     local_now = datetime.now().astimezone()
     ora = local_now.hour
     periodo = "mattina" if 6 <= ora < 12 else "pomeriggio" if 12 <= ora < 18 else "sera" if 18 <= ora < 22 else "notte"
-    rule_guidance = generate_rule_based_advice(solar, pota, bands, modes, ora)
+    rule_guidance = generate_rule_based_advice(solar, pota, bands, modes, ora, lang)
 
-    instruction = (
+    instruction = t(
         "Analizza i dati operativi reali e fornisci 3 consigli pratici specifici per "
         "queste condizioni. Massimo 4 righe, tono professionale ma diretto. Non presentare "
         "frequenze o stazioni tratte dal corpus come se fossero attive adesso. Gli spot POTA "
         "misurano attività, non qualità della propagazione. Non definire la propagazione "
         "ottimale o garantita e non dedurre DX, rumore o aperture dai soli conteggi. Non "
         "convertire nomi di banda come 20m o 40m in frequenze numeriche se tali frequenze "
-        "non compaiono esplicitamente nei dati correnti."
+        "non compaiono esplicitamente nei dati correnti.",
+        "Give up to three practical listening suggestions in English, in no more than four lines. "
+        "Use current observations and keep log history distinct from live activity. Avoid claiming "
+        "specific frequencies, stations, openings, noise levels or DX that the data does not support.",
     )
     current_data = f"""
 STATISTICHE OPERATORE:
@@ -1474,7 +1521,7 @@ VALUTAZIONE DETERMINISTICA DELL'APP (non contraddire):
 {rule_guidance}
 """.strip()
 
-    response_text, source = ask_ai(instruction, current_data)
+    response_text, source = ask_ai(instruction, current_data, lang)
     if not response_text:
         response_text = rule_guidance
         if source not in {"rules", "rules-guarded"}:
