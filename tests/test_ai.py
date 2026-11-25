@@ -26,6 +26,60 @@ class RagClientTests(unittest.TestCase):
         main.solar_data_cache.clear()
         main.pota_data_cache.clear()
 
+    def test_dashboard_selects_and_remembers_language_without_changing_log_data(self) -> None:
+        def dashboard(lang="", cookie=b""):
+            request = Request({"type": "http", "headers": [(b"cookie", cookie)]})
+            with main.SessionLocal() as db:
+                return main.dashboard(request, db, lang=lang)
+
+        italian = dashboard()
+        self.assertIn(b'<html lang="it">', italian.body)
+        self.assertIn(b"Salva QSO", italian.body)
+        self.assertIn(b"Apri storico completo", italian.body)
+
+        english = dashboard(lang="en")
+        self.assertIn(b'<html lang="en">', english.body)
+        self.assertIn(b"Save QSO", english.body)
+        self.assertIn(b"Open full history", english.body)
+        self.assertIn(b"Ask AI for advice", english.body)
+        cookie = english.headers["set-cookie"].split(";", 1)[0].encode()
+        self.assertIn(b'<html lang="en">', dashboard(cookie=cookie).body)
+        self.assertIn(b'<html lang="it">', dashboard(lang="it", cookie=cookie).body)
+
+    @patch("src.main.ask_rag")
+    @patch("src.main.requests.post")
+    def test_english_advice_rejects_unsupported_claim_and_uses_english_rules(self, post, rag) -> None:
+        post.return_value.json.return_value = {
+            "message": {"content": "Avoid the band because it is noisy."}
+        }
+        with patch("src.main.get_solar_data", return_value={"k_float": 2.0}), \
+                patch("src.main.get_pota_spots", return_value={}), \
+                patch("src.main.get_qso_statistics", return_value=(0, {}, {})), \
+                patch("src.main.get_operator_locator", return_value=""):
+            result = main.ai_analyze(Mock(), lang="en")
+
+        self.assertEqual(result["source"], "rules-guarded")
+        self.assertIn("Low K-index (2.0)", result["response"])
+        self.assertNotIn("noisy", result["response"])
+        rag.assert_not_called()
+        messages = post.call_args.kwargs["json"]["messages"]
+        self.assertIn("Respond in English", messages[0]["content"])
+        self.assertIn("Low K-index (2.0)", messages[1]["content"])
+
+    def test_english_alert_falls_back_to_english_without_consulting_the_qso_log(self) -> None:
+        solar = {"status": "ok", "k_float": 2.0, "sfi_float": 130.0}
+        with main.SessionLocal() as db, \
+                patch("src.main.get_solar_data", return_value=solar), \
+                patch("src.main.get_pota_spots", return_value={}), \
+                patch("src.main.ask_direct_llm", return_value=None), \
+                patch("src.main.get_qso_statistics") as statistics:
+            result = main.trigger_check_ui(db, lang="en")
+
+        self.assertEqual(result["alert"]["source"], "rules")
+        self.assertEqual(result["evaluation"]["level"], "strong operating conditions")
+        self.assertIn("Quiet geomagnetic field", result["alert"]["message"])
+        statistics.assert_not_called()
+
     def test_maidenhead_locator_is_normalized_and_converted(self) -> None:
         self.assertEqual(main.normalize_locator(" jn65 "), "JN65")
         latitude, longitude = main.maidenhead_to_coordinates("JN65")
@@ -764,6 +818,14 @@ class RagClientTests(unittest.TestCase):
             dashboard = requests.get(base_url + "/", timeout=5)
             self.assertEqual(dashboard.status_code, 200)
             self.assertIn("Consigliere di Stazione", dashboard.text)
+            with requests.Session() as client:
+                english = client.get(base_url + "/?lang=en", timeout=5)
+                self.assertEqual(english.status_code, 200)
+                self.assertIn('lang="en"', english.text)
+                self.assertIn("Save QSO", client.get(base_url + "/", timeout=5).text)
+                italian = client.get(base_url + "/?lang=it", timeout=5)
+                self.assertIn('lang="it"', italian.text)
+                self.assertIn("Salva QSO", client.get(base_url + "/", timeout=5).text)
             openapi = requests.get(base_url + "/openapi.json", timeout=5).json()
             self.assertEqual(openapi["info"]["version"], main.APP_VERSION)
 

@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="{{ lang }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SWL-Log con AI Locale - Gestionale Radio I6502TR</title>
+    <title>{{ t("SWL-Log con AI Locale - Gestionale Radio I6502TR", "SWL Log with Local AI – I6502TR") }}</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -17,6 +17,9 @@
             max-width: 1400px;
             margin: 0 auto;
         }
+        .language-picker { text-align: right; margin-bottom: 8px; }
+        .language-picker a { color: #fff; padding: 4px; }
+        .language-picker a[aria-current="page"] { color: #ffd700; font-weight: bold; }
         h1 {
             text-align: center;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
@@ -377,10 +380,15 @@
 </head>
 <body>
     <div class="container">
+        <nav class="language-picker" aria-label="{{ t('Lingua', 'Language') }}">
+            <a href="/?lang=it" lang="it" hreflang="it"{% if lang == 'it' %} aria-current="page"{% endif %}>IT</a>
+            <span aria-hidden="true"> / </span>
+            <a href="/?lang=en" lang="en" hreflang="en"{% if lang == 'en' %} aria-current="page"{% endif %}>EN</a>
+        </nav>
         <h1>📡 Consigliere di Stazione</h1>
         <div class="subtitle">
-            Operatore:
-            <span id="callsign-display" onclick="editCallsign()" style="cursor:pointer" title="Clicca per modificare il nominativo">
+            {{ t("Operatore:", "Operator:") }}
+            <span id="callsign-display" onclick="editCallsign()" style="cursor:pointer" title="{{ t("Clicca per modificare il nominativo", "Click to edit your callsign") }}">
                 <strong>{{ callsign }}</strong> ✎
             </span>
             <span id="callsign-edit" style="display:none">
@@ -390,23 +398,23 @@
                        onblur="saveCallsign()">
             </span>
             | QTH:
-            <span id="locator-display" data-locator="{{ operator_locator }}" onclick="editLocator()" style="cursor:pointer" title="Clicca per impostare il locator del tuo QTH">
-                <strong>{{ operator_locator or 'Imposta locator' }}</strong> ✎
+            <span id="locator-display" data-locator="{{ operator_locator }}" onclick="editLocator()" style="cursor:pointer" title="{{ t("Clicca per impostare il locator del tuo QTH", "Click to set your station locator") }}">
+                <strong>{{ operator_locator or t("Imposta locator", "Set locator") }}</strong> ✎
             </span>
             <span id="locator-edit" style="display:none">
-                <input id="locator-input" type="text" maxlength="6" placeholder="es. JN65"
+                <input id="locator-input" type="text" maxlength="6" placeholder="{{ t("es. JN65", "e.g. JN65") }}"
                        style="width:105px;font-weight:bold;text-transform:uppercase;background:#1e3c72;color:#ffd700;border:1px solid #ffd700;border-radius:4px;padding:2px 6px"
                        onkeydown="if(event.key==='Enter'){event.preventDefault(); saveLocator();} if(event.key==='Escape'){event.preventDefault(); cancelLocator();}"
                        onblur="saveLocator()">
             </span>
-            | Laboratorio AI Locale
+            | {{ t("Laboratorio AI Locale", "Local AI Lab") }}
         </div>
         
         <!-- STATISTICHE RAPIDE -->
         <div class="stats">
             <div class="stat-box">
                 <div class="stat-number">{{ total }}</div>
-                <div>QSO Totali</div>
+                <div>{{ t("QSO Totali", "Total QSOs") }}</div>
             </div>
             {% for band, count in bands.items() %}
             <div class="stat-box">
@@ -419,11 +427,11 @@
         <div class="grid">
             <!-- INSERIMENTO QSO -->
             <div class="card">
-                <h2>📝 Nuovo QSO</h2>
+                <h2>{{ t("📝 Nuovo QSO", "📝 New QSO") }}</h2>
                 <form id="qsoForm">
-                    <input type="number" min="0.001" max="300000" step="0.001" name="frequency" placeholder="Frequenza (MHz) - es: 14.250" required>
+                    <input type="number" min="0.001" max="300000" step="0.001" name="frequency" placeholder="{{ t("Frequenza (MHz) - es: 14.250", "Frequency (MHz), e.g. 14.250") }}" required>
                     <select name="mode" required>
-                        <option value="">Seleziona Modo</option>
+                        <option value="">{{ t("Seleziona Modo", "Select mode") }}</option>
                         <option value="SSB">SSB</option>
                         <option value="CW">CW</option>
                         <option value="FM">FM</option>
@@ -434,30 +442,30 @@
                         <option value="RTTY">RTTY</option>
                         <option value="JT65">JT65</option>
                     </select>
-                    <input type="text" name="call_sign" maxlength="20" placeholder="Nominativo - es: IK1ABC" required>
-                    <input type="text" name="rst_received" maxlength="10" placeholder="RST Ricevuto - es: 59">
-                    <input type="text" name="locator" placeholder="Locatore QTH - es: JN45MM" maxlength="6">
-                    <textarea name="notes" rows="2" maxlength="5000" placeholder="Note (propagazione, QSB, stazione, etc...)"></textarea>
-                    <button type="submit">💾 Salva QSO</button>
+                    <input type="text" name="call_sign" maxlength="20" placeholder="{{ t("Nominativo - es: IK1ABC", "Callsign, e.g. IK1ABC") }}" required>
+                    <input type="text" name="rst_received" maxlength="10" placeholder="{{ t("RST Ricevuto - es: 59", "Received RST, e.g. 59") }}">
+                    <input type="text" name="locator" placeholder="{{ t("Locatore QTH - es: JN45MM", "Grid locator, e.g. JN45MM") }}" maxlength="6">
+                    <textarea name="notes" rows="2" maxlength="5000" placeholder="{{ t("Note (propagazione, QSB, stazione, etc...)", "Notes (propagation, QSB, station, etc.)") }}"></textarea>
+                    <button type="submit">{{ t("💾 Salva QSO", "💾 Save QSO") }}</button>
                 </form>
             </div>
             
             <!-- CONTROLLI ESTERNI -->
             <div class="card">
-                <h2>🌍 Dati In Tempo Reale</h2>
+                <h2>{{ t("🌍 Dati In Tempo Reale", "🌍 Live data") }}</h2>
                 
                 <!-- BOTTONE CONTROLLA ORA AGGIUNTO -->
                 <button class="btn-check" onclick="triggerCheck()">
-                    🔄 Controlla Ora (Genera Alert)
+                    {{ t("🔄 Controlla Ora (Genera Alert)", "🔄 Check now (generate alert)") }}
                 </button>
                 <div id="check-response"></div>
                 
                 <button class="btn-noaa" onclick="fetchSolar()">
-                    🌞 Aggiorna Dati Solar (NOAA)
+                    {{ t("🌞 Aggiorna Dati Solar (NOAA)", "🌞 Refresh solar data (NOAA)") }}
                 </button>
                 
                 <div class="noaa-status-line">
-                    <span>🌐 <strong>NOAA Status:</strong> <span id="noaa-dot">🟡</span> <span id="noaa-text">Verifica connessione...</span></span>
+                    <span>🌐 <strong>NOAA Status:</strong> <span id="noaa-dot">🟡</span> <span id="noaa-text">{{ t("Verifica connessione...", "Checking connection…") }}</span></span>
                     <button class="noaa-status-btn" onclick="testNOAA()">Test</button>
                 </div>
                 
@@ -479,12 +487,12 @@
                     </select>
                 </div>
                 <button class="btn-dx" onclick="fetchDxSpots()">
-                    📡 Cerca Stazioni Attive (POTA)
+                    {{ t("📡 Cerca Stazioni Attive (POTA)", "📡 Find active stations (POTA)") }}
                 </button>
                 <div id="dx-response"></div>
                 
                 <button class="btn-ai" onclick="askAI()">
-                    🤖 Chiedi Consiglio all'IA (usa anche il tuo storico)
+                    {{ t("🤖 Chiedi Consiglio all'IA (usa anche il tuo storico)", "🤖 Ask AI for advice (includes your log history)") }}
                 </button>
                 <div id="ai-response"></div>
             </div>
@@ -492,18 +500,18 @@
 
         <!-- TABELLA LOG -->
         <div class="card full-width">
-            <h2>📋 Ultimi QSO Registrati</h2>
+            <h2>{{ t("📋 Ultimi QSO Registrati", "📋 Latest logged QSOs") }}</h2>
             <div style="overflow-x: auto;">
                 <table>
                     <thead>
                         <tr>
-                            <th>Data/Ora</th>
-                            <th>Banda</th>
-                            <th>Modo</th>
-                            <th>Nominativo</th>
+                            <th>{{ t("Data/Ora", "Date/time") }}</th>
+                            <th>{{ t("Banda", "Band") }}</th>
+                            <th>{{ t("Modo", "Mode") }}</th>
+                            <th>{{ t("Nominativo", "Callsign") }}</th>
                             <th>RST</th>
-                            <th>Locatore</th>
-                            <th>Note (clicca per espandere)</th>
+                            <th>{{ t("Locatore", "Locator") }}</th>
+                            <th>{{ t("Note (clicca per espandere)", "Notes (click to expand)") }}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -515,7 +523,7 @@
                             <td><strong style="color: #ffd700;">{{ log.call_sign }}</strong></td>
                             <td>{{ log.rst_received or '-' }}</td>
                             <td>{{ log.locator or '-' }}</td>
-                            <td class="note-cell" onclick="this.classList.toggle('expanded')" title="Clicca per espandere/ridurre">
+                            <td class="note-cell" onclick="this.classList.toggle('expanded')" title="{{ t("Clicca per espandere/ridurre", "Click to expand or collapse") }}">
                                 <span class="note-preview">
                                     {{ log.notes[:80]|e if log.notes else '-' }}{% if log.notes and log.notes|length > 80 %}...{% endif %}
                                     <span class="expand-icon">▼</span>
@@ -530,13 +538,13 @@
                     </tbody>
                 </table>
                 {% if not logs %}
-                <p style="text-align: center; opacity: 0.7; padding: 20px;">Nessun QSO registrato. Inizia ad ascoltare!</p>
+                <p style="text-align: center; opacity: 0.7; padding: 20px;">{{ t("Nessun QSO registrato. Inizia ad ascoltare!", "No QSOs logged yet. Start listening!") }}</p>
                 {% endif %}
             </div>
             <div class="log-actions">
-                <button class="btn-history" onclick="openHistory()">📚 Apri storico completo</button>
-                <a class="download-link" href="/export/qso.csv" download>⬇️ Esporta CSV</a>
-                <a class="download-link" href="/export/qso.adi" download>📻 Esporta ADIF</a>
+                <button class="btn-history" onclick="openHistory()">{{ t("📚 Apri storico completo", "📚 Open full history") }}</button>
+                <a class="download-link" href="/export/qso.csv" download>{{ t("⬇️ Esporta CSV", "⬇️ Export CSV") }}</a>
+                <a class="download-link" href="/export/qso.adi" download>{{ t("📻 Esporta ADIF", "📻 Export ADIF") }}</a>
                 <a class="download-link backup" href="/backup/database" download>💾 Backup database</a>
             </div>
         </div>
@@ -545,42 +553,63 @@
     <div id="historyModal" class="history-modal" role="dialog" aria-modal="true" aria-labelledby="historyTitle">
         <div class="history-panel">
             <div class="history-header">
-                <h2 id="historyTitle">📚 Storico completo QSO</h2>
-                <button class="history-close" onclick="closeHistory()" aria-label="Chiudi storico">✕ Chiudi</button>
+                <h2 id="historyTitle">{{ t("📚 Storico completo QSO", "📚 Full QSO history") }}</h2>
+                <button class="history-close" onclick="closeHistory()" aria-label="{{ t("Chiudi storico", "Close history") }}">{{ t("✕ Chiudi", "✕ Close") }}</button>
             </div>
             <div class="history-filters">
-                <input id="historySearch" type="search" placeholder="Cerca nominativo, locator o note..." onkeydown="if(event.key==='Enter') applyHistoryFilters()">
+                <input id="historySearch" type="search" placeholder="{{ t("Cerca nominativo, locator o note...", "Search callsign, locator or notes…") }}" onkeydown="if(event.key==='Enter') applyHistoryFilters()">
                 <select id="historyBand">
-                    <option value="">Tutte le bande</option>
+                    <option value="">{{ t("Tutte le bande", "All bands") }}</option>
                     <option>160m</option><option>80m</option><option>60m</option><option>40m</option>
                     <option>30m</option><option>20m</option><option>17m</option><option>15m</option>
                     <option>12m</option><option>10m</option><option>6m</option>
                 </select>
                 <select id="historyMode">
-                    <option value="">Tutti i modi</option>
+                    <option value="">{{ t("Tutti i modi", "All modes") }}</option>
                     <option>SSB</option><option>CW</option><option>FM</option><option>AM</option>
                     <option>FT8</option><option>FT4</option><option>PSK31</option><option>RTTY</option><option>JT65</option>
                 </select>
-                <button onclick="applyHistoryFilters()">🔎 Filtra</button>
+                <button onclick="applyHistoryFilters()">{{ t("🔎 Filtra", "🔎 Filter") }}</button>
             </div>
             <div class="history-table-wrap">
                 <table id="historyTable">
                     <thead>
-                        <tr><th>Data/Ora</th><th>Banda</th><th>Frequenza</th><th>Modo</th><th>Nominativo</th><th>RST</th><th>Locator</th><th>Note</th><th>Azioni</th></tr>
+                        <tr><th>{{ t("Data/Ora", "Date/time") }}</th><th>{{ t("Banda", "Band") }}</th><th>{{ t("Frequenza", "Frequency") }}</th><th>{{ t("Modo", "Mode") }}</th><th>{{ t("Nominativo", "Callsign") }}</th><th>RST</th><th>Locator</th><th>{{ t("Note", "Notes") }}</th><th>{{ t("Azioni", "Actions") }}</th></tr>
                     </thead>
                     <tbody id="historyBody"></tbody>
                 </table>
-                <div id="historyEmpty">Nessun QSO corrisponde ai filtri.</div>
+                <div id="historyEmpty">{{ t("Nessun QSO corrisponde ai filtri.", "No QSOs match these filters.") }}</div>
             </div>
             <div class="history-footer">
-                <button id="historyPrev" class="history-page-btn" onclick="changeHistoryPage(-1)">← Precedenti</button>
-                <span id="historyInfo">Caricamento…</span>
-                <button id="historyNext" class="history-page-btn" onclick="changeHistoryPage(1)">Successivi →</button>
+                <button id="historyPrev" class="history-page-btn" onclick="changeHistoryPage(-1)">{{ t("← Precedenti", "← Previous") }}</button>
+                <span id="historyInfo">{{ t("Caricamento…", "Loading…") }}</span>
+                <button id="historyNext" class="history-page-btn" onclick="changeHistoryPage(1)">{{ t("Successivi →", "Next →") }}</button>
             </div>
         </div>
     </div>
 
     <script>
+        const language = {{ lang|tojson }};
+        const english = language === 'en';
+        const locale = english ? 'en-GB' : 'it-IT';
+        const t = (it, en) => english ? en : it;
+        const englishApiMessages = {
+          "Locator non valido: usa 4 o 6 caratteri, per esempio JN65 o JN65ER": "Invalid locator: use 4 or 6 characters, for example JN65 or JN65ER",
+          "Frequenza non valida: inserisci un valore in MHz tra 0.001 e 300000": "Invalid frequency: enter a value in MHz between 0.001 and 300000",
+          "Modo non valido": "Invalid mode",
+          "Nominativo non valido: massimo 20 caratteri, lettere, numeri, /, . o -": "Invalid callsign: use up to 20 letters, digits or the characters /, . and -",
+          "RST troppo lungo: massimo 10 caratteri": "RST is too long: maximum 10 characters",
+          "Note troppo lunghe: massimo 5000 caratteri": "Notes are too long: maximum 5000 characters",
+          "QSO non trovato": "QSO not found",
+          "Richiesta rifiutata: origine diversa dall'app locale": "Request rejected: origin differs from the local application",
+          "Timeout - NOAA non risponde": "NOAA did not respond in time",
+          "Errore connessione/DNS": "Connection or DNS error",
+          "Aggiornamento NOAA non disponibile": "NOAA update unavailable",
+          "Dati solar non disponibili": "Solar data unavailable",
+          "no_alert": "Conditions do not warrant an alert"
+        };
+        const apiMessage = message => english ? englishApiMessages[message] ?? message : message;
+
         const historyLimit = 50;
         let historyOffset = 0;
         let historyTotal = 0;
@@ -599,7 +628,8 @@
             body.replaceChildren();
             historyItems.clear();
             empty.style.display = 'none';
-            info.textContent = 'Caricamento…';
+            info.textContent = t('Caricamento…', "Loading…");
+            empty.textContent = t('Nessun QSO corrisponde ai filtri.', 'No QSOs match these filters.');
 
             const params = new URLSearchParams({offset: historyOffset, limit: historyLimit});
             const search = document.getElementById('historySearch').value.trim();
@@ -618,7 +648,7 @@
                 data.items.forEach(item => {
                     historyItems.set(item.id, item);
                     const row = document.createElement('tr');
-                    const timestamp = item.timestamp ? new Date(item.timestamp).toLocaleString('it-IT') : '-';
+                    const timestamp = item.timestamp ? new Date(item.timestamp).toLocaleString(locale) : '-';
                     historyCell(row, timestamp);
                     historyCell(row, item.band);
                     historyCell(row, Number(item.frequency).toFixed(3) + ' MHz');
@@ -631,12 +661,12 @@
                     actions.className = 'history-action-cell';
                     const editButton = document.createElement('button');
                     editButton.type = 'button';
-                    editButton.textContent = '✏️ Modifica';
+                    editButton.textContent = t('✏️ Modifica', "✏️ Edit");
                     editButton.addEventListener('click', () => editHistoryQso(item.id));
                     const deleteButton = document.createElement('button');
                     deleteButton.type = 'button';
                     deleteButton.className = 'delete-qso';
-                    deleteButton.textContent = '🗑️ Elimina';
+                    deleteButton.textContent = t('🗑️ Elimina', "🗑️ Delete");
                     deleteButton.addEventListener('click', () => deleteHistoryQso(item.id));
                     actions.append(editButton, deleteButton);
                     row.appendChild(actions);
@@ -645,12 +675,12 @@
 
                 const first = historyTotal ? historyOffset + 1 : 0;
                 const last = Math.min(historyOffset + data.items.length, historyTotal);
-                info.textContent = `${first}–${last} di ${historyTotal} QSO`;
+                info.textContent = `${first}–${last}${t(` di ${historyTotal} QSO`, ` of ${historyTotal} QSOs`)}`;
                 empty.style.display = data.items.length ? 'none' : 'block';
                 document.getElementById('historyPrev').disabled = historyOffset === 0;
                 document.getElementById('historyNext').disabled = historyOffset + historyLimit >= historyTotal;
             } catch (error) {
-                info.textContent = 'Errore nel caricamento dello storico';
+                info.textContent = t('Errore nel caricamento dello storico', "Could not load QSO history");
                 empty.textContent = error.message;
                 empty.style.display = 'block';
             }
@@ -681,17 +711,17 @@
         async function editHistoryQso(id) {
             const item = historyItems.get(id);
             if (!item) return;
-            const frequency = prompt('Frequenza in MHz', item.frequency);
+            const frequency = prompt(t('Frequenza in MHz', "Frequency in MHz"), item.frequency);
             if (frequency === null) return;
-            const mode = prompt('Modo', item.mode);
+            const mode = prompt(t('Modo', "Mode"), item.mode);
             if (mode === null) return;
-            const callSign = prompt('Nominativo', item.call_sign);
+            const callSign = prompt(t('Nominativo', "Callsign"), item.call_sign);
             if (callSign === null) return;
-            const rst = prompt('RST ricevuto', item.rst_received || '');
+            const rst = prompt(t('RST ricevuto', "Received RST"), item.rst_received || '');
             if (rst === null) return;
             const locator = prompt('Locator', item.locator || '');
             if (locator === null) return;
-            const notes = prompt('Note', item.notes || '');
+            const notes = prompt(t('Note', "Notes"), item.notes || '');
             if (notes === null) return;
 
             try {
@@ -703,7 +733,7 @@
                     })
                 });
                 const data = await response.json();
-                if (!response.ok) throw new Error(data.detail || 'Impossibile modificare il QSO');
+                if (!response.ok) throw new Error((typeof data.detail === 'string' ? apiMessage(data.detail) : '') || t('Impossibile modificare il QSO', "Could not edit the QSO"));
                 location.reload();
             } catch (error) {
                 alert(error.message);
@@ -712,11 +742,14 @@
 
         async function deleteHistoryQso(id) {
             const item = historyItems.get(id);
-            if (!item || !confirm(`Eliminare definitivamente il QSO con ${item.call_sign}?`)) return;
+            if (!item || !confirm(t(
+                `Eliminare definitivamente il QSO con ${item.call_sign}?`,
+                `Permanently delete the QSO with ${item.call_sign}?`
+            ))) return;
             try {
                 const response = await fetch(`/qso/${id}/delete`, {method: 'POST'});
                 const data = await response.json();
-                if (!response.ok) throw new Error(data.detail || 'Impossibile eliminare il QSO');
+                if (!response.ok) throw new Error((typeof data.detail === 'string' ? apiMessage(data.detail) : '') || t('Impossibile eliminare il QSO', "Could not delete the QSO"));
                 location.reload();
             } catch (error) {
                 alert(error.message);
@@ -736,7 +769,7 @@
             const txt = document.getElementById('noaa-text');
             
             dot.textContent = '🟡';
-            txt.textContent = 'Test in corso...';
+            txt.textContent = t('Test in corso...', "Testing connection…");
             
             try {
                 const r = await fetch('/debug/noaa-test');
@@ -744,10 +777,11 @@
                 
                 if (d.noaa_status === 'ok') {
                     dot.textContent = '🟢';
-                    txt.textContent = `Connesso (${Math.round(d.response_time_ms)}ms)`;
+                    const elapsed = Math.round(d.response_time_ms);
+                    txt.textContent = t(`Connesso (${elapsed} ms)`, `Connected (${elapsed} ms)`);
                 } else {
                     dot.textContent = '🔴';
-                    txt.textContent = 'Errore connessione';
+                    txt.textContent = t('Errore connessione', "Connection error");
                     console.error('NOAA Error:', d.error_details);
                 }
             } catch(e) {
@@ -763,39 +797,40 @@
         async function triggerCheck() {
             const btn = document.querySelector('.btn-check');
             const resp = document.getElementById('check-response');
+            const idleLabel = btn.textContent.trim();
             
             btn.disabled = true;
-            btn.textContent = '⏳ Generazione in corso...';
+            btn.textContent = t('⏳ Generazione in corso...', "⏳ Generating alert…");
             resp.style.display = 'block';
-            resp.innerHTML = '<div class="loading">Analisi condizioni + AI...</div>';
+            resp.innerHTML = t('<div class="loading">Analisi condizioni + AI...</div>', "<div class=\"loading\">Checking conditions and preparing advice…</div>");
             
             try {
-                const r = await fetch('/ui/trigger-check', { method: 'POST' });
+                const r = await fetch('/ui/trigger-check?lang=' + language, { method: 'POST' });
                 const d = await r.json();
                 
                 if (d.status === 'alert_generated') {
                     const sourceWarning = d.alert.source === 'llm-direct'
-                        ? '<br><br>⚠️ <small>RAG non disponibile: alert generato da Qwen senza consultare il corpus tecnico.</small>'
+                        ? t('<br><br>⚠️ <small>RAG non disponibile: alert generato da Qwen senza consultare il corpus tecnico.</small>', "<br><br>⚠️ <small>Qwen generated this alert without the reference library.</small>")
                         : d.alert.source === 'llm-direct-guarded'
-                            ? '<br><br>🛡️ <small>La risposta RAG conteneva deduzioni non supportate ed è stata scartata; alert riformulato da Qwen sulle sole regole verificate.</small>'
+                            ? t('<br><br>🛡️ <small>La risposta RAG conteneva deduzioni non supportate ed è stata scartata; alert riformulato da Qwen sulle sole regole verificate.</small>', "<br><br>🛡️ <small>The RAG reply contained unsupported claims. Qwen restated the verified assessment.</small>")
                         : d.alert.source === 'rules'
-                            ? '<br><br>🧭 <small>RAG e LLM non disponibili: alert calcolato con le regole locali.</small>'
+                            ? t('<br><br>🧭 <small>RAG e LLM non disponibili: alert calcolato con le regole locali.</small>', "<br><br>🧭 <small>The built-in rules produced this alert.</small>")
                             : d.alert.source === 'rules-guarded'
-                                ? '<br><br>🛡️ <small>Le risposte AI non hanno superato la verifica: alert calcolato esclusivamente con le regole locali.</small>'
+                                ? t('<br><br>🛡️ <small>Le risposte AI non hanno superato la verifica: alert calcolato esclusivamente con le regole locali.</small>', "<br><br>🛡️ <small>The AI reply did not pass validation. The built-in rules produced this alert.</small>")
                             : '';
-                    resp.innerHTML = `✅ <strong>Alert Generato!</strong><br><br>🎯 ${escapeHtml(d.alert.message)}<br><br><em>Score: ${escapeHtml(d.evaluation.score)}/100 - Livello: ${escapeHtml(d.evaluation.level)}</em>${sourceWarning}`;
+                    resp.innerHTML = `✅ <strong>${t("Alert Generato!", "Alert generated!")}</strong><br><br>🎯 ${escapeHtml(d.alert.message)}<br><br><em>Score: ${escapeHtml(d.evaluation.score)}/100${t(" - Livello: ", " - Level: ")}${escapeHtml(d.evaluation.level)}</em>${sourceWarning}`;
                 } else if (d.status === 'cached') {
-                    resp.innerHTML = `ℹ️ <strong>Alert in cache</strong><br>Già inviato recentemente. Attendi 30 minuti o usa "force=true"`;
+                    resp.innerHTML = `ℹ️ <strong>${t("Alert in cache", "Cached alert")}</strong><br>${t("Già inviato recentemente. Attendi 30 minuti o usa \"force=true\"", "An alert was sent recently. Wait 30 minutes or use \"force=true\".")}`;
                 } else if (d.status === 'quiet') {
-                    resp.innerHTML = `ℹ️ <strong>Condizioni quiete</strong><br>Score troppo basso (${escapeHtml(d.score)}/100). Nessun alert necessario.<br><em>Forza comunque con /alert/check?force=true</em>`;
+                    resp.innerHTML = `ℹ️ <strong>${t("Condizioni quiete", "Quiet conditions")}</strong><br>${t("Score troppo basso (", "Score too low (")}${escapeHtml(d.score)}/100${t("). Nessun alert necessario.", "). No alert needed.")}<br><em>${t("Forza comunque con ", "Force an alert with ")}/alert/check?force=true</em>`;
                 } else {
-                    resp.innerHTML = `⚠️ <strong>Stato:</strong> ${escapeHtml(d.message || d.status)}`;
+                    resp.innerHTML = `⚠️ <strong>${t("Stato:", "Status:")}</strong> ${escapeHtml(apiMessage(d.message || d.status))}`;
                 }
             } catch(e) {
-                resp.innerHTML = '❌ Errore di connessione: ' + escapeHtml(e.message);
+                resp.innerHTML = t('❌ Errore di connessione: ', "❌ Connection error: ") + escapeHtml(e.message);
             } finally {
                 btn.disabled = false;
-                btn.textContent = '🔄 Controlla Ora (Genera Alert)';
+                btn.textContent = idleLabel;
             }
         }
 
@@ -803,8 +838,9 @@
         document.getElementById('qsoForm').onsubmit = async (e) => {
             e.preventDefault();
             const btn = e.target.querySelector('button');
+            const idleLabel = btn.textContent.trim();
             btn.disabled = true;
-            btn.textContent = 'Salvataggio...';
+            btn.textContent = t('Salvataggio...', "Saving…");
             
             const formData = new FormData(e.target);
             
@@ -817,13 +853,13 @@
                     location.reload();
                 } else {
                     const data = await response.json();
-                    alert(data.detail || 'Errore salvataggio');
+                    alert((typeof data.detail === 'string' ? apiMessage(data.detail) : '') || t('Errore salvataggio', "Could not save the QSO"));
                 }
             } catch (err) {
-                alert('Errore di connessione');
+                alert(t('Errore di connessione', "Connection error"));
             } finally {
                 btn.disabled = false;
-                btn.textContent = '💾 Salva QSO';
+                btn.textContent = idleLabel;
             }
         };
 
@@ -831,33 +867,34 @@
         async function fetchSolar() {
             const btn = document.querySelector('.btn-noaa');
             const resp = document.getElementById('solar-response');
+            const idleLabel = btn.textContent.trim();
             
             btn.disabled = true;
-            btn.textContent = '🌞 Scaricando dati NOAA...';
+            btn.textContent = t('🌞 Scaricando dati NOAA...', "🌞 Fetching NOAA data…");
             resp.style.display = 'block';
-            resp.innerHTML = '<div class="loading">Contatto satellite NOAA in corso...</div>';
+            resp.innerHTML = t('<div class="loading">Contatto satellite NOAA in corso...</div>', "<div class=\"loading\">Contacting NOAA…</div>");
             
             try {
-                const response = await fetch('/fetch/solar');
+                const response = await fetch('/fetch/solar?lang=' + language);
                 const data = await response.json();
                 
                 if (data.status === 'ok') {
-                    resp.innerHTML = `<strong>✅ Dati Solar Aggiornati!</strong>
+                    resp.innerHTML = `<strong>${t("✅ Dati Solar Aggiornati!", "✅ Solar data updated!")}</strong>
                     
 <strong>K-Index:</strong> ${escapeHtml(data.data.k_index || 'N/A')}
 <strong>Solar Flux:</strong> ${escapeHtml(data.data.sfi || 'N/A')}
-<strong>Condizioni:</strong> ${escapeHtml(data.interpretation)}
-<strong>Ora del dato:</strong> ${escapeHtml(data.data.timestamp ? new Date(data.data.timestamp).toLocaleString('it-IT') : 'non disponibile')}
+<strong>${t("Condizioni:", "Conditions:")}</strong> ${escapeHtml(data.interpretation)}
+<strong>${t("Ora del dato:", "Data timestamp:")}</strong> ${escapeHtml(data.data.timestamp ? new Date(data.data.timestamp).toLocaleString(locale) : t('non disponibile', "unavailable"))}
 
-<em>Salvato automaticamente nel database${data.data.cached ? ` · cache ${escapeHtml(data.data.cache_age_seconds)}s${data.data.stale ? ' (ultimo dato valido)' : ''}` : ''}</em>`;
+<em>${data.saved ? t('Salvato automaticamente nel database', 'Saved to the database') : t('Dato già registrato', 'Reading already recorded')}${data.data.cached ? ` · cache ${escapeHtml(data.data.cache_age_seconds)}s${data.data.stale ? t(' (ultimo dato valido)', " (last known good data)") : ''}` : ''}</em>`;
                 } else {
-                    resp.innerHTML = `<strong>❌ Errore:</strong> ${escapeHtml(data.message || 'Dati non disponibili')}`;
+                    resp.innerHTML = `<strong>${t("❌ Errore:", "❌ Error:")}</strong> ${escapeHtml(apiMessage(data.message) || t('Dati non disponibili', "Data unavailable"))}`;
                 }
             } catch (e) {
-                resp.innerHTML = `<strong>❌ Errore di connessione:</strong> ${escapeHtml(e.message)}`;
+                resp.innerHTML = `<strong>${t("❌ Errore di connessione:", "❌ Connection error:")}</strong> ${escapeHtml(e.message)}`;
             } finally {
                 btn.disabled = false;
-                btn.textContent = '🌞 Aggiorna Dati Solar (NOAA)';
+                btn.textContent = idleLabel;
             }
         }
 
@@ -871,25 +908,27 @@
         async function fetchDxSpots() {
             const btn = document.querySelector('.btn-dx');
             const resp = document.getElementById('dx-response');
+            const idleLabel = btn.textContent.trim();
             const band = document.getElementById('dxBand').value;
             const mode = document.getElementById('dxMode').value;
             
             btn.disabled = true;
-            btn.textContent = '📡 Ricerca stazioni...';
+            btn.textContent = t('📡 Ricerca stazioni...', "📡 Looking for active stations…");
             resp.style.display = 'block';
-            resp.innerHTML = '<div class="loading">Interrogo POTA (Parks on the Air)...</div>';
+            resp.innerHTML = t('<div class="loading">Interrogo POTA (Parks on the Air)...</div>', "<div class=\"loading\">Contacting POTA (Parks on the Air)…</div>");
             
             try {
                 const response = await fetch(`/fetch/dxspots?band=${band}&mode=${mode}`);
                 const data = await response.json();
                 
-                let html = `<strong>📡 Spot ${escapeHtml(band)} ${escapeHtml(mode)} - Trovati: ${escapeHtml(data.spots_found)}</strong>\n\n`;
+                if (data.status !== 'ok') throw new Error(t('Dati POTA non disponibili', 'POTA data unavailable'));
+                let html = `<strong>📡 Spot ${escapeHtml(band)} ${escapeHtml(mode)}${t(" - Trovati: ", " - Found: ")}${escapeHtml(data.spots_found)}</strong>\n\n`;
                 
                 if (data.spots && data.spots.length > 0) {
                     data.spots.forEach(spot => {
                         const location = spot.distance_km !== undefined
-                            ? `${spot.distance_km} km verso ${spot.direction} (${spot.bearing_deg}°)`
-                            : 'distanza non disponibile';
+                            ? `${spot.distance_km}${t(" km verso ", " km towards ")}${english ? ({SO: 'SW', O: 'W', NO: 'NW'}[spot.direction] || spot.direction) : spot.direction} (${spot.bearing_deg}°)`
+                            : t('distanza non disponibile', "distance unavailable");
                         const details = [spot.park, spot.grid, location].filter(Boolean).map(escapeHtml).join(' · ');
                         html += `<div class="spot-item">
                             <div class="spot-main">
@@ -900,24 +939,24 @@
                         </div>`;
                     });
                 } else {
-                    html += '<em>Nessuna stazione attiva rilevata al momento</em>';
+                    html += t('<em>Nessuna stazione attiva rilevata al momento</em>', "<em>No active stations found</em>");
                 }
                 
                 const cacheLabel = data.cached
-                    ? ` · cache ${escapeHtml(data.cache_age_seconds)}s${data.stale ? ' (ultimo dato valido)' : ''}`
+                    ? ` · cache ${escapeHtml(data.cache_age_seconds)}s${data.stale ? t(' (ultimo dato valido)', " (last known good data)") : ''}`
                     : '';
                 const dataTime = data.data_timestamp || data.timestamp;
                 const dataTimeLabel = dataTime
-                    ? new Date(dataTime).toLocaleString('it-IT')
-                    : 'non disponibile';
-                html += `\n<em>Ora del dato: ${escapeHtml(dataTimeLabel)}${cacheLabel}</em>`;
+                    ? new Date(dataTime).toLocaleString(locale)
+                    : t('non disponibile', "unavailable");
+                html += `\n<em>${t("Ora del dato:", "Data timestamp:")} ${escapeHtml(dataTimeLabel)}${cacheLabel}</em>`;
                 resp.innerHTML = html;
                 
             } catch (e) {
-                resp.innerHTML = `<strong>❌ Errore:</strong> ${escapeHtml(e.message)}`;
+                resp.innerHTML = `<strong>${t("❌ Errore:", "❌ Error:")}</strong> ${escapeHtml(e.message)}`;
             } finally {
                 btn.disabled = false;
-                btn.textContent = '📡 Cerca Stazioni Attive (POTA)';
+                btn.textContent = idleLabel;
             }
         }
 
@@ -925,34 +964,35 @@
         async function askAI() {
             const btn = document.querySelector('.btn-ai');
             const resp = document.getElementById('ai-response');
+            const idleLabel = btn.textContent.trim();
             
             btn.disabled = true;
-            btn.textContent = '🤖 Analisi in corso...';
+            btn.textContent = t('🤖 Analisi in corso...', "🤖 Analysing…");
             resp.style.display = 'block';
-            resp.innerHTML = '<div class="loading">Collegamento IA locale...</div>';
+            resp.innerHTML = t('<div class="loading">Collegamento IA locale...</div>', "<div class=\"loading\">Contacting local AI…</div>");
             
             try {
-                const response = await fetch('/ai/analyze');
+                const response = await fetch('/ai/analyze?lang=' + language);
                 const data = await response.json();
                 
                 if (!data.response || data.response === 'undefined') {
-                    resp.innerHTML = '⚠️ <strong>Consiglio non disponibile.</strong><br>Controlla i dati NOAA e riprova.';
+                    resp.innerHTML = t('⚠️ <strong>Consiglio non disponibile.</strong><br>Controlla i dati NOAA e riprova.', "⚠️ <strong>Advice is unavailable.</strong><br>Check the NOAA data and try again.");
                 } else if (data.source === 'rules') {
-                    resp.innerHTML = '🧭 <strong>CONSIGLIO LOCALE:</strong><br><small>RAG e LLM non disponibili: risposta calcolata dai dati NOAA, POTA e dal registro.</small>\n\n' + escapeHtml(data.response);
+                    resp.innerHTML = t('🧭 <strong>CONSIGLIO LOCALE:</strong><br><small>RAG e LLM non disponibili: risposta calcolata dai dati NOAA, POTA e dal registro.</small>\n\n', "🧭 <strong>LOCAL ADVICE:</strong><br><small>Built-in rules used NOAA, POTA and log statistics.</small>\n\n") + escapeHtml(data.response);
                 } else if (data.source === 'rules-guarded') {
-                    resp.innerHTML = '🛡️ <strong>CONSIGLIO LOCALE DOPO VERIFICA AI:</strong><br><small>Le risposte di RAG e/o Qwen contenevano elementi non supportati e sono state scartate. Questo testo è calcolato esclusivamente dalle regole locali.</small>\n\n' + escapeHtml(data.response);
+                    resp.innerHTML = t('🛡️ <strong>CONSIGLIO LOCALE DOPO VERIFICA AI:</strong><br><small>Le risposte di RAG e/o Qwen contenevano elementi non supportati e sono state scartate. Questo testo è calcolato esclusivamente dalle regole locali.</small>\n\n', "🛡️ <strong>LOCAL ADVICE AFTER AI VALIDATION:</strong><br><small>The AI reply contained unsupported claims. The built-in rules produced this advice.</small>\n\n") + escapeHtml(data.response);
                 } else if (data.source === 'llm-direct') {
-                    resp.innerHTML = '⚠️ <strong>CONSIGLIO QWEN SENZA RAG:</strong><br><small>Il corpus tecnico non è disponibile: risposta generata soltanto dai dati correnti e quindi meno verificabile.</small>\n\n' + escapeHtml(data.response);
+                    resp.innerHTML = t('⚠️ <strong>CONSIGLIO QWEN SENZA RAG:</strong><br><small>Il corpus tecnico non è disponibile: risposta generata soltanto dai dati correnti e quindi meno verificabile.</small>\n\n', "⚠️ <strong>QWEN ADVICE WITHOUT RAG:</strong><br><small>Qwen used the current assessment without the reference library.</small>\n\n") + escapeHtml(data.response);
                 } else if (data.source === 'llm-direct-guarded') {
-                    resp.innerHTML = '🛡️ <strong>CONSIGLIO QWEN DOPO VERIFICA RAG:</strong><br><small>La risposta RAG conteneva frequenze o deduzioni non supportate ed è stata scartata. Questo testo usa soltanto la valutazione deterministica verificata.</small>\n\n' + escapeHtml(data.response);
+                    resp.innerHTML = t('🛡️ <strong>CONSIGLIO QWEN DOPO VERIFICA RAG:</strong><br><small>La risposta RAG conteneva frequenze o deduzioni non supportate ed è stata scartata. Questo testo usa soltanto la valutazione deterministica verificata.</small>\n\n', "🛡️ <strong>QWEN ADVICE AFTER RAG VALIDATION:</strong><br><small>The RAG reply contained unsupported claims. Qwen restated the verified assessment.</small>\n\n") + escapeHtml(data.response);
                 } else {
-                    resp.innerHTML = '🎯 <strong>CONSIGLI SWLBOT RAG:</strong>\n\n' + escapeHtml(data.response);
+                    resp.innerHTML = t('🎯 <strong>CONSIGLI SWLBOT RAG:</strong>\n\n', "🎯 <strong>SWLBOT RAG ADVICE:</strong>\n\n") + escapeHtml(data.response);
                 }
             } catch (e) {
-                resp.innerHTML = '❌ Errore di connessione: ' + escapeHtml(e.message);
+                resp.innerHTML = t('❌ Errore di connessione: ', "❌ Connection error: ") + escapeHtml(e.message);
             } finally {
                 btn.disabled = false;
-                btn.textContent = '🤖 Chiedi Consiglio all\'IA (usa anche il tuo storico)';
+                btn.textContent = idleLabel;
             }
         }
 
@@ -977,7 +1017,10 @@
                     method: 'POST',
                     body: new URLSearchParams({callsign: val})
                 });
-                if (!response.ok) throw new Error('Impossibile salvare il nominativo');
+                if (!response.ok) {
+                    const data = await response.json();
+                    throw new Error((typeof data.detail === 'string' ? apiMessage(data.detail) : '') || t('Impossibile salvare il nominativo', 'Could not save the callsign'));
+                }
                 document.querySelector('#callsign-display strong').textContent = val;
                 document.getElementById('callsign-display').style.display = 'inline';
                 document.getElementById('callsign-edit').style.display = 'none';
@@ -1017,14 +1060,14 @@
                     body: new URLSearchParams({locator})
                 });
                 const data = await response.json();
-                if (!response.ok) throw new Error(data.detail || 'Locator non valido');
+                if (!response.ok) throw new Error((typeof data.detail === 'string' ? apiMessage(data.detail) : '') || t('Locator non valido', "Invalid locator"));
 
                 const display = document.getElementById('locator-display');
                 display.dataset.locator = data.locator;
-                display.querySelector('strong').textContent = data.locator || 'Imposta locator';
+                display.querySelector('strong').textContent = data.locator || t('Imposta locator', "Set locator");
                 display.title = data.locator
                     ? `QTH ${data.locator} — ${data.latitude}, ${data.longitude}`
-                    : 'Clicca per impostare il locator del tuo QTH';
+                    : t('Clicca per impostare il locator del tuo QTH', "Click to set your station locator");
                 display.style.display = 'inline';
                 document.getElementById('locator-edit').style.display = 'none';
             } catch (error) {

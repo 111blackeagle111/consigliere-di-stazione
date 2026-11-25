@@ -10,7 +10,7 @@ Your QSO log lives in a SQLite database on your computer. You can search and edi
 
 ![The dashboard in Italian, showing the QSO log and live data controls](docs/screenshot.png)
 
-The dashboard is currently in Italian. The [English Quick Start](https://github.com/111blackeagle111/consigliere-di-stazione/wiki/Quick-Start) gives the exact labels to look for.
+In builds with the **IT / EN** selector, choose **EN** at the top of the dashboard. The browser remembers your choice. Version 1.1.1 uses Italian labels, which are listed in the [English Quick Start](https://github.com/111blackeagle111/consigliere-di-stazione/wiki/Quick-Start).
 
 ## Get started
 
@@ -35,6 +35,6 @@ Open `http://localhost:8080` in your browser. The server listens on the local ma
 
 Both buttons fetch their own data. If you set your Maidenhead locator, the app can calculate the distance and bearing of POTA spots that include a locator.
 
-Ollama and swlbot RAG are optional. The app tries the RAG service first, then Qwen through Ollama, and finally its built-in rules. It checks generated advice for unsupported claims, including frequencies absent from the supplied data. If the RAG service or Ollama is configured on another machine, that endpoint may receive your locator, aggregate log statistics and the live data summary. Individual QSO records stay out of the prompt.
+Ollama and swlbot RAG are optional. In Italian, the app tries RAG first, then Qwen through Ollama, and finally its built-in rules. English advice starts with Qwen and falls back to the built-in rules because the current RAG service is Italian-only. The app checks generated advice for unsupported claims, including frequencies absent from the supplied data. If RAG or Ollama is configured on another machine, that endpoint may receive your locator, aggregate log statistics and the live data summary. Individual QSO records stay out of the prompt.
 
 See the [English Wiki home](https://github.com/111blackeagle111/consigliere-di-stazione/wiki/English) for help getting started. The [contribution guide](CONTRIBUTING.md) explains how to report a bug or propose a change. Issues and pull requests in English are welcome.
