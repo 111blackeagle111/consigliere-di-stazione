@@ -1,5 +1,7 @@
 # Contribuire al progetto
 
+Issues and pull requests are welcome in English or Italian.
+
 Grazie per il tuo interesse a contribuire a questo progetto! Di seguito le linee guida principali per aprire issue e PR.
 
 1. Aprire un'issue prima di lavorare su una nuova caratteristica importante: descrivi lo scopo, i passi per riprodurre (se bug) e il comportamento atteso.
