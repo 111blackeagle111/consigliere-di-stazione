@@ -1,5 +1,7 @@
 # Consigliere di Stazione 🇮🇹📡
 
+[Italiano](README.md) · [English](README.en.md)
+
 *Made in Italy by I6502TR*
 
 Il Consigliere di Stazione prova a riportare nello shack una figura familiare: il socio esperto che dà un'occhiata al K-index, ascolta cosa succede sulle bande e ti dice se vale la pena fare un tentativo.
